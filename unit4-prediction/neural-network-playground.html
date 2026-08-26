@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>신경망 플레이그라운드 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+  .btn-group button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  #nnCanvas { width: 100%; aspect-ratio: 1/1; border-radius: 10px; border: 1px solid var(--color-border); }
+  .status-msg { font-weight: 700; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; }
+  .status-msg.ok { background: #e3faf3; color: #05875a; }
+  .status-msg.limited { background: #fff4e3; color: #a15c00; }
+  .formula { font-size: 0.95rem; background: var(--color-bg); border-radius: 10px; padding: 10px 14px; display: inline-block; }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🧠 신경망 플레이그라운드</h1>
+    <p>가장 단순한 신경망(퍼셉트론 1개)이 점들을 어떻게 두 그룹으로 나누는지, 가중치를 직접 조절하거나 학습시켜보며 확인해봅시다.</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label>데이터 종류</label>
+        <div class="btn-group" id="dataBtns">
+          <button data-set="linear" class="active">선형 분리 가능</button>
+          <button data-set="circle">원형 패턴</button>
+          <button data-set="xor">XOR 패턴</button>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <label>w1 (x1의 가중치) = <span class="value" id="w1Val">1.0</span></label>
+        <input type="range" id="w1Slider" min="-5" max="5" step="0.1" value="1" />
+      </div>
+      <div class="control-group">
+        <label>w2 (x2의 가중치) = <span class="value" id="w2Val">1.0</span></label>
+        <input type="range" id="w2Slider" min="-5" max="5" step="0.1" value="1" />
+      </div>
+      <div class="control-group">
+        <label>b (편향) = <span class="value" id="bVal">0.0</span></label>
+        <input type="range" id="bSlider" min="-5" max="5" step="0.1" value="0" />
+      </div>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <label>학습률 α = <span class="value" id="lrVal">0.5</span></label>
+        <input type="range" id="lrSlider" min="0.05" max="2" step="0.05" value="0.5" />
+      </div>
+      <button id="trainBtn">🚀 학습 시작 (경사하강법)</button>
+      <button class="secondary" id="stopBtn">정지</button>
+      <button class="secondary" id="resetBtn">가중치 초기화</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div id="statusMsg" class="status-msg ok">가중치를 조절해 경계선을 움직여보세요.</div>
+      <canvas id="nnCanvas"></canvas>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0;">모델</h3>
+      <p class="formula">z = w1·x1 + w2·x2 + b<br>예측 확률 = σ(z) = 1/(1+e⁻ᶻ)</p>
+      <div class="stat-row" style="flex-direction:column; gap:10px; margin-top:14px;">
+        <div class="stat"><span class="label">정확도</span><span class="val" id="statAcc">-</span></div>
+        <div class="stat"><span class="label">손실 (Cross-Entropy)</span><span class="val" id="statLoss">-</span></div>
+        <div class="stat"><span class="label">학습 반복 횟수</span><span class="val" id="statEpoch">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">관찰 포인트</h3>
+    <ul>
+      <li>퍼셉트론 1개는 <strong>직선(경계선) 하나</strong>로만 두 그룹을 나눌 수 있습니다.</li>
+      <li>"선형 분리 가능" 데이터는 정확도 100%까지 학습되지만, <strong>"XOR 패턴"과 "원형 패턴"은 직선 하나로 나눌 수 없어</strong> 학습을 시켜도 정확도가 낮은 수준에 머무릅니다.</li>
+      <li>이것이 실제 역사에서 <strong>단층 퍼셉트론의 한계</strong>로 지적된 문제이며(Unit1의 '첫 번째 AI 겨울' 참고), 이 한계를 극복하기 위해 은닉층을 가진 다층 신경망이 등장했습니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+const canvas = document.getElementById("nnCanvas");
+const ctx = canvas.getContext("2d");
+const RANGE = 4; // -RANGE ~ +RANGE
+
+function toCanvas(x, y, size) {
+  const scale = size / (RANGE * 2);
+  return [size/2 + x*scale, size/2 - y*scale];
+}
+function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
+
+let points = [];
+function genDataset(name) {
+  const pts = [];
+  if (name === "linear") {
+    for (let i = 0; i < 60; i++) {
+      const x1 = (Math.random()*2-1)*RANGE, x2 = (Math.random()*2-1)*RANGE;
+      const margin = (Math.random()-0.5)*0.6;
+      const label = (x1 + x2 + margin) > 0 ? 1 : 0;
+      pts.push({ x1, x2, label });
+    }
+  } else if (name === "circle") {
+    for (let i = 0; i < 60; i++) {
+      const x1 = (Math.random()*2-1)*RANGE, x2 = (Math.random()*2-1)*RANGE;
+      const label = (x1*x1 + x2*x2) < (RANGE*0.55)**2 ? 1 : 0;
+      pts.push({ x1, x2, label });
+    }
+  } else if (name === "xor") {
+    for (let i = 0; i < 60; i++) {
+      const x1 = (Math.random()*2-1)*RANGE, x2 = (Math.random()*2-1)*RANGE;
+      const label = (x1 > 0) !== (x2 > 0) ? 1 : 0;
+      pts.push({ x1, x2, label });
+    }
+  }
+  return pts;
+}
+
+let w1 = 1, w2 = 1, b = 0;
+let lr = 0.5;
+let epoch = 0;
+let trainTimer = null;
+
+function computeStats() {
+  let correct = 0, loss = 0;
+  points.forEach(p => {
+    const z = w1*p.x1 + w2*p.x2 + b;
+    const pr = sigmoid(z);
+    const pred = pr >= 0.5 ? 1 : 0;
+    if (pred === p.label) correct++;
+    const eps = 1e-9;
+    loss += -(p.label*Math.log(pr+eps) + (1-p.label)*Math.log(1-pr+eps));
+  });
+  return { acc: correct/points.length, loss: loss/points.length };
+}
+
+function render() {
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  canvas.width = size; canvas.height = size;
+  ctx.clearRect(0,0,size,size);
+
+  // 배경 영역 색칠 (예측 확률)
+  const cell = 8;
+  for (let py = 0; py < size; py += cell) {
+    for (let px = 0; px < size; px += cell) {
+      const scale = size / (RANGE*2);
+      const x1 = (px - size/2) / scale;
+      const x2 = (size/2 - py) / scale;
+      const pr = sigmoid(w1*x1 + w2*x2 + b);
+      const red = Math.round(255*pr), blue = Math.round(255*(1-pr));
+      ctx.fillStyle = `rgba(${red},80,${blue},0.18)`;
+      ctx.fillRect(px, py, cell, cell);
+    }
+  }
+
+  // 축
+  ctx.strokeStyle = "#a9adbd"; ctx.lineWidth = 1;
+  const [ox, oy] = toCanvas(0,0,size);
+  ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(size, oy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, size); ctx.stroke();
+
+  // 결정 경계선 (w1 x1 + w2 x2 + b = 0)
+  ctx.strokeStyle = "#1c1f2b"; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  let started = false;
+  if (Math.abs(w2) > 1e-6) {
+    [-RANGE, RANGE].forEach(x1 => {
+      const x2 = -(w1*x1 + b) / w2;
+      const [cx, cy] = toCanvas(x1, x2, size);
+      if (!started) { ctx.moveTo(cx, cy); started = true; } else { ctx.lineTo(cx, cy); }
+    });
+  } else if (Math.abs(w1) > 1e-6) {
+    const x1 = -b / w1;
+    const [cx1, cy1] = toCanvas(x1, -RANGE, size);
+    const [cx2, cy2] = toCanvas(x1, RANGE, size);
+    ctx.moveTo(cx1, cy1); ctx.lineTo(cx2, cy2);
+  }
+  ctx.stroke();
+
+  // 데이터 점
+  points.forEach(p => {
+    const [cx, cy] = toCanvas(p.x1, p.x2, size);
+    ctx.beginPath();
+    ctx.fillStyle = p.label === 1 ? "#c9302c" : "#2857a6";
+    ctx.arc(cx, cy, 6, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "white"; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  const { acc, loss } = computeStats();
+  document.getElementById("statAcc").textContent = (acc*100).toFixed(1) + "%";
+  document.getElementById("statLoss").textContent = loss.toFixed(3);
+  document.getElementById("statEpoch").textContent = epoch;
+
+  const msg = document.getElementById("statusMsg");
+  if (acc > 0.95) {
+    msg.className = "status-msg ok";
+    msg.textContent = "✅ 거의 완벽하게 분류하고 있습니다!";
+  } else if (acc < 0.8 && epoch > 30) {
+    msg.className = "status-msg limited";
+    msg.textContent = "⚠️ 직선 하나로는 이 데이터를 잘 나눌 수 없습니다 — 단층 퍼셉트론의 한계입니다.";
+  } else {
+    msg.className = "status-msg ok";
+    msg.textContent = "가중치를 조절하거나 학습시켜 경계선을 움직여보세요.";
+  }
+}
+
+function trainStep() {
+  let gw1 = 0, gw2 = 0, gb = 0;
+  points.forEach(p => {
+    const pr = sigmoid(w1*p.x1 + w2*p.x2 + b);
+    const err = pr - p.label;
+    gw1 += err * p.x1; gw2 += err * p.x2; gb += err;
+  });
+  const n = points.length;
+  w1 -= lr * gw1/n; w2 -= lr * gw2/n; b -= lr * gb/n;
+  epoch++;
+  syncSliders();
+  render();
+}
+
+function syncSliders() {
+  document.getElementById("w1Slider").value = w1.toFixed(2);
+  document.getElementById("w2Slider").value = w2.toFixed(2);
+  document.getElementById("bSlider").value = b.toFixed(2);
+  document.getElementById("w1Val").textContent = w1.toFixed(2);
+  document.getElementById("w2Val").textContent = w2.toFixed(2);
+  document.getElementById("bVal").textContent = b.toFixed(2);
+}
+
+["w1","w2","b"].forEach(id => {
+  document.getElementById(id+"Slider").addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    if (id === "w1") w1 = v; if (id === "w2") w2 = v; if (id === "b") b = v;
+    document.getElementById(id+"Val").textContent = v.toFixed(2);
+    render();
+  });
+});
+
+document.getElementById("lrSlider").addEventListener("input", (e) => {
+  lr = parseFloat(e.target.value);
+  document.getElementById("lrVal").textContent = lr.toFixed(2);
+});
+
+document.getElementById("dataBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-set]");
+  if (!btn) return;
+  document.querySelectorAll("#dataBtns button").forEach(b2 => b2.classList.remove("active"));
+  btn.classList.add("active");
+  points = genDataset(btn.dataset.set);
+  epoch = 0;
+  render();
+});
+
+document.getElementById("trainBtn").addEventListener("click", () => {
+  if (trainTimer) return;
+  trainTimer = setInterval(trainStep, 100);
+});
+document.getElementById("stopBtn").addEventListener("click", () => {
+  clearInterval(trainTimer); trainTimer = null;
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  clearInterval(trainTimer); trainTimer = null;
+  w1 = (Math.random()*2-1); w2 = (Math.random()*2-1); b = 0;
+  epoch = 0;
+  syncSliders();
+  render();
+});
+
+window.addEventListener("resize", render);
+
+points = genDataset("linear");
+render();
+</script>
+</body>
+</html>
