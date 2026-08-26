@@ -7,7 +7,7 @@ HTML/CSS/JS로 작성되어 있어 GitHub Pages로 바로 배포되고, 파일 �
 
 ## 사용해보기
 
-GitHub Pages 링크: (배포 후 추가 예정)
+GitHub Pages 링크: https://knuekim91.github.io/ai-math-webapp/
 
 ## 폴더 구조
 
