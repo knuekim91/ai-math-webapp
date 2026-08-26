@@ -15,6 +15,7 @@ GitHub Pages 링크: https://knuekim91.github.io/ai-math-webapp/
 AI_math/
 ├── index.html                    # 전체 단원 목차(허브 페이지)
 ├── assets/                       # 공통 스타일 및 스크립트
+├── unit1-ai-history/             # I. 인공지능과 수학 (인공지능의 역사)
 ├── unit2-data-representation/    # II. 자료의 표현
 ├── unit3-data-analysis/          # III. 자료의 분석
 ├── unit4-prediction/             # IV. 인공지능과 예측
@@ -25,6 +26,9 @@ AI_math/
 
 ## 현재 제공 중인 도구
 
+- **인공지능의 역사** (`unit1-ai-history/ai-history.html`): 1900년대부터
+  현재까지 AI 발달사를 타임라인으로 학습하고(학습 모드), 사건 카드를 올바른
+  시대로 드래그 앤 드롭해 복습하는 도구(복습 모드).
 - **경사하강법 시각화** (`unit4-prediction/gradient-descent.html`): 학습률과
   시작점을 바꿔가며 경사하강법이 함수의 최솟값을 찾아가는 과정을 관찰합니다.
 

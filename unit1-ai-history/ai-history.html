@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>인공지능의 역사 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .mode-switch {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .mode-switch button {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  .mode-switch button.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  /* ---- 학습 모드: 타임라인 ---- */
+  .timeline {
+    position: relative;
+    padding-left: 26px;
+    border-left: 3px solid var(--color-border);
+  }
+  .era-block {
+    margin-bottom: 46px;
+    position: relative;
+  }
+  .era-block::before {
+    content: "";
+    position: absolute;
+    left: -32px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    border: 3px solid var(--color-surface);
+    box-shadow: 0 0 0 2px var(--color-primary);
+  }
+  .era-head h2 {
+    margin: 0 0 2px;
+    font-size: 1.15rem;
+  }
+  .era-head .range {
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    font-weight: 700;
+  }
+  .era-head p {
+    margin: 6px 0 18px;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .event-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  .event-card .imgs {
+    display: flex;
+  }
+  .event-card .imgs img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block;
+    background: #eee;
+  }
+  .event-card .imgs.no-img {
+    display: none;
+  }
+  .event-card .body {
+    padding: 14px 16px;
+  }
+  .event-card .year {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: white;
+    background: var(--color-primary);
+    padding: 2px 9px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .event-card h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+  }
+  .event-card p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+  .event-card .credit {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    padding: 3px 16px 0;
+    opacity: 0.7;
+  }
+
+  /* ---- 복습 모드: 드래그 앤 드롭 ---- */
+  #reviewMode { display: none; }
+  .review-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .score-badge {
+    font-weight: 700;
+    background: var(--color-bg);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  #cardPool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-height: 56px;
+    padding: 14px;
+    background: var(--color-bg);
+    border: 1px dashed var(--color-border);
+    border-radius: 12px;
+    margin-bottom: 26px;
+  }
+  .event-chip {
+    cursor: grab;
+    user-select: none;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.1s ease, border-color 0.15s ease;
+  }
+  .event-chip.selected {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+  }
+  .event-chip.correct {
+    border-color: var(--color-accent);
+    background: #e9fbf7;
+    cursor: default;
+    opacity: 0.85;
+  }
+  .event-chip.wrong {
+    animation: shake 0.35s;
+    border-color: #ff5b77;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  .buckets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .bucket {
+    min-height: 130px;
+    border: 2px dashed var(--color-border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--color-surface);
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .bucket.dragover {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+  }
+  .bucket h4 {
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+  }
+  .bucket .range {
+    font-size: 0.7rem;
+    color: var(--color-accent);
+    font-weight: 700;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .bucket .slot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 30px;
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🕰️ 인공지능의 역사</h1>
+    <p>1900년대 계산 이론의 뿌리부터 오늘날 생성형 AI까지, 인공지능이 걸어온 길을 살펴보고 직접 시대순으로 정리해봅시다.</p>
+  </div>
+
+  <div class="mode-switch">
+    <button id="btnLearn" class="active">📖 학습 모드</button>
+    <button id="btnReview">🎮 복습 모드 (드래그 앤 드롭)</button>
+  </div>
+
+  <!-- ===================== 학습 모드 ===================== -->
+  <div id="learnMode">
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <!-- ===================== 복습 모드 ===================== -->
+  <div id="reviewMode">
+    <div class="panel">
+      <p style="margin-top:0;">카드를 알맞은 시대 칸으로 <strong>드래그</strong>하거나, 카드를 <strong>탭한 뒤 원하는 칸을 탭</strong>해서 놓아보세요. 다 놓았으면 채점해보세요.</p>
+      <div class="review-toolbar">
+        <div class="score-badge">정답 <span id="scoreVal">0</span> / <span id="scoreTotal">0</span></div>
+        <div class="controls" style="margin:0;">
+          <button id="gradeBtn">채점하기</button>
+          <button class="secondary" id="shuffleBtn">다시 섞기</button>
+        </div>
+      </div>
+      <div id="cardPool"></div>
+      <div class="buckets" id="buckets"></div>
+    </div>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+const CREDIT = "Wikimedia Commons";
+
+const ERAS = [
+  { id: "A", label: "① 태동기", range: "1900s ~ 1940s", desc: "컴퓨터라는 기계조차 없던 시절, 수학자들이 '계산'과 '사고'를 논리로 표현하는 이론적 토대를 놓았습니다." },
+  { id: "B", label: "② 인공지능의 탄생", range: "1950년대", desc: "'인공지능'이라는 이름이 처음 생기고, 기계가 배울 수 있다는 발상이 실제 알고리즘으로 구현되기 시작했습니다." },
+  { id: "C", label: "③ 첫 번째 황금기와 겨울", range: "1960~70년대", desc: "초기 성과에 대한 기대가 컸지만 한계가 드러나면서 연구 지원이 크게 줄어드는 '첫 번째 AI 겨울'을 맞습니다." },
+  { id: "D", label: "④ 전문가 시스템 시대", range: "1980년대", desc: "특정 분야의 지식을 규칙으로 담은 '전문가 시스템'이 상업적으로 성공했지만, 곧 두 번째 겨울이 찾아옵니다." },
+  { id: "E", label: "⑤ 기계학습의 부상", range: "1990년대", desc: "규칙을 일일이 입력하는 대신 데이터에서 스스로 배우는 통계적 기계학습이 주목받기 시작합니다." },
+  { id: "F", label: "⑥ 딥러닝 혁명", range: "2010년대", desc: "많은 데이터와 강력한 컴퓨팅 성능이 만나며 인공신경망(딥러닝)이 이미지·바둑 등에서 사람을 뛰어넘기 시작합니다." },
+  { id: "G", label: "⑦ 생성형 AI 시대", range: "2020년대 ~ 현재", desc: "거대 언어모델이 글을 쓰고 대화하는 시대. AI의 능력과 위험성에 대한 사회적 논의가 함께 커지고 있습니다." },
+];
+const EVENTS = [
+  {
+    id: 1, era: "A", year: "1936", title: "튜링 기계",
+    desc: "앨런 튜링이 '계산 가능하다'는 것이 수학적으로 무엇을 뜻하는지 정의하기 위해 고안한 가상의 기계. 오늘날 모든 컴퓨터 이론의 뿌리가 되었습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Alan_turing_header.jpg", alt: "앨런 튜링" }],
+  },
+  {
+    id: 2, era: "A", year: "1943", title: "매컬럭-피츠 뉴런",
+    desc: "워런 매컬럭과 월터 피츠가 두뇌의 신경세포(뉴런)를 최초로 수학·논리 회로로 표현한 모델. 오늘날 인공신경망의 출발점입니다.",
+    imgs: [],
+  },
+  {
+    id: 3, era: "B", year: "1950", title: "튜링 테스트",
+    desc: "대화를 나눠 봤을 때 상대가 기계인지 사람인지 구별할 수 없다면 그 기계는 '생각한다'고 볼 수 있다는 앨런 튜링의 사고실험.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/5/55/Turing_test_diagram.png", alt: "튜링 테스트 개념도" }],
+  },
+  {
+    id: 4, era: "B", year: "1956", title: "다트머스 회의",
+    desc: "존 매카시 등이 미국 다트머스 대학에 모여 '인공지능(Artificial Intelligence)'이라는 용어를 처음 사용한 워크숍. AI가 독립된 학문 분야로 출범한 순간입니다.",
+    imgs: [],
+  },
+  {
+    id: 5, era: "B", year: "1958", title: "퍼셉트론",
+    desc: "프랭크 로젠블랫이 발표한 최초의 인공신경망 학습 알고리즘. 실제 하드웨어(Mark I Perceptron)로도 구현되어 큰 주목을 받았습니다.",
+    imgs: [
+      { src: "https://upload.wikimedia.org/wikipedia/commons/3/3b/Frank_Rosenblatt.jpg", alt: "프랭크 로젠블랫" },
+      { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Mark_I_Perceptron%2C_Figure_2_of_operator%27s_manual.png/960px-Mark_I_Perceptron%2C_Figure_2_of_operator%27s_manual.png", alt: "Mark I 퍼셉트론 도해" },
+    ],
+  },
+  {
+    id: 6, era: "C", year: "1966", title: "ELIZA",
+    desc: "조지프 와이젠바움이 만든 최초의 챗봇 프로그램. 정해진 규칙으로 심리상담사처럼 대화해 많은 사람을 놀라게 했습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/7/79/ELIZA_conversation.png", alt: "ELIZA와의 대화 예시" }],
+  },
+  {
+    id: 7, era: "C", year: "1970년대", title: "첫 번째 AI 겨울",
+    desc: "민스키와 페퍼트가 퍼셉트론의 수학적 한계를 지적하고 기대만큼 성과가 나오지 않으면서, AI 연구에 대한 지원이 크게 줄어들었습니다.",
+    imgs: [],
+  },
+  {
+    id: 8, era: "D", year: "1980년대", title: "전문가 시스템의 시대",
+    desc: "의료·화학 등 특정 분야 전문가의 지식을 '만약 ~라면 ~한다'는 규칙으로 정리한 전문가 시스템(MYCIN, XCON 등)이 기업에서 상업적으로 성공했습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/5/53/Symbolics3640_Modified.JPG", alt: "전문가 시스템 시대에 쓰인 워크스테이션" }],
+  },
+  {
+    id: 9, era: "D", year: "1987~1993", title: "두 번째 AI 겨울",
+    desc: "전문가 시스템은 규칙을 일일이 새로 넣어야 해 유지보수가 어려웠고, 전용 하드웨어 시장까지 붕괴하면서 AI는 다시 침체기를 맞습니다.",
+    imgs: [],
+  },
+  {
+    id: 10, era: "E", year: "1997", title: "딥블루 vs 카스파로프",
+    desc: "IBM의 체스 컴퓨터 '딥블루'가 당시 세계 체스 챔피언 가리 카스파로프를 정식 경기에서 꺾으며, 컴퓨터의 계산력이 사람을 넘어설 수 있음을 보여줬습니다.",
+    imgs: [
+      { src: "https://upload.wikimedia.org/wikipedia/commons/b/be/Deep_Blue.jpg", alt: "딥블루 컴퓨터" },
+      { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Garri_Kasparow_%2818776605665%29_%28cropped%29_2.jpg/960px-Garri_Kasparow_%2818776605665%29_%28cropped%29_2.jpg", alt: "가리 카스파로프" },
+    ],
+  },
+  {
+    id: 11, era: "F", year: "2012", title: "AlexNet",
+    desc: "이미지 인식 대회(ImageNet)에서 딥러닝 기반 신경망 'AlexNet'이 기존 방식들을 압도적 차이로 이기면서, 딥러닝 붐이 본격적으로 시작됐습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/AlexNet_block_diagram.svg/960px-AlexNet_block_diagram.svg.png", alt: "AlexNet 구조도" }],
+  },
+  {
+    id: 12, era: "F", year: "2016", title: "알파고 vs 이세돌",
+    desc: "구글 딥마인드의 '알파고'가 바둑 세계 최상위 기사 이세돌 9단을 4대 1로 꺾으며, 딥러닝이 직관의 영역이라 여겨지던 바둑까지 정복했습니다.",
+    imgs: [
+      { src: "https://upload.wikimedia.org/wikipedia/commons/2/25/Lee_Se-Dol_-_2016_%28cropped%29.jpg", alt: "이세돌 9단" },
+      { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/FloorGoban.JPG/960px-FloorGoban.JPG", alt: "바둑판" },
+    ],
+  },
+  {
+    id: 13, era: "G", year: "2020", title: "GPT-3",
+    desc: "OpenAI가 매개변수 1750억 개 규모의 초대형 언어모델 GPT-3를 공개, 사람이 쓴 것 같은 자연스러운 글을 생성해 큰 화제를 모았습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Full_GPT_architecture.svg/960px-Full_GPT_architecture.svg.png", alt: "GPT 아키텍처 구조도" }],
+  },
+  {
+    id: 14, era: "G", year: "2022", title: "ChatGPT 출시",
+    desc: "GPT를 대화형으로 다듬은 ChatGPT가 출시 두 달 만에 사용자 1억 명을 돌파, AI를 실생활 도구로 대중화시킨 분기점이 되었습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/OpenAI_logo_2025_%28symbol%29.svg/960px-OpenAI_logo_2025_%28symbol%29.svg.png", alt: "OpenAI 로고" }],
+  },
+  {
+    id: 15, era: "G", year: "2024", title: "힌턴, 노벨물리학상 수상",
+    desc: "'딥러닝의 대부'로 불리는 제프리 힌턴이 인공신경망 연구 공로로 노벨물리학상을 수상하며, AI 발전과 그 위험성에 대한 사회적 논의가 더욱 커졌습니다.",
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Geoffrey_Hinton_in_2026.jpg/960px-Geoffrey_Hinton_in_2026.jpg", alt: "제프리 힌턴" }],
+  },
+];
+
+// ---------------- 학습 모드 렌더 ----------------
+const timelineEl = document.getElementById("timeline");
+ERAS.forEach(era => {
+  const block = document.createElement("div");
+  block.className = "era-block";
+  const evs = EVENTS.filter(e => e.era === era.id);
+  block.innerHTML =
+    '<div class="era-head"><span class="range">' + era.range + '</span><h2>' + era.label + '</h2><p>' + era.desc + '</p></div>' +
+    '<div class="event-grid">' +
+    evs.map(ev => {
+      const imgsHtml = ev.imgs.length
+        ? '<div class="imgs">' + ev.imgs.map(im => '<img src="' + im.src + '" alt="' + im.alt + '" loading="lazy">').join("") + '</div>' +
+          '<span class="credit">사진: ' + CREDIT + '</span>'
+        : "";
+      return '<div class="event-card">' + imgsHtml +
+        '<div class="body"><span class="year">' + ev.year + '</span><h3>' + ev.title + '</h3><p>' + ev.desc + '</p></div></div>';
+    }).join("") +
+    '</div>';
+  timelineEl.appendChild(block);
+});
+
+// ---------------- 모드 전환 ----------------
+const btnLearn = document.getElementById("btnLearn");
+const btnReview = document.getElementById("btnReview");
+const learnMode = document.getElementById("learnMode");
+const reviewMode = document.getElementById("reviewMode");
+
+btnLearn.addEventListener("click", () => {
+  btnLearn.classList.add("active");
+  btnReview.classList.remove("active");
+  learnMode.style.display = "";
+  reviewMode.style.display = "none";
+});
+btnReview.addEventListener("click", () => {
+  btnReview.classList.add("active");
+  btnLearn.classList.remove("active");
+  reviewMode.style.display = "";
+  learnMode.style.display = "none";
+});
+
+// ---------------- 복습 모드: 드래그 앤 드롭 ----------------
+const cardPool = document.getElementById("cardPool");
+const bucketsEl = document.getElementById("buckets");
+const scoreVal = document.getElementById("scoreVal");
+const scoreTotal = document.getElementById("scoreTotal");
+scoreTotal.textContent = EVENTS.length;
+
+let selectedChip = null;
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildBuckets() {
+  bucketsEl.innerHTML = "";
+  ERAS.forEach(era => {
+    const b = document.createElement("div");
+    b.className = "bucket";
+    b.dataset.era = era.id;
+    b.innerHTML = '<h4>' + era.label + '</h4><span class="range">' + era.range + '</span><div class="slot"></div>';
+    bucketsEl.appendChild(b);
+    attachBucketEvents(b);
+  });
+}
+
+function buildChip(ev) {
+  const chip = document.createElement("div");
+  chip.className = "event-chip";
+  chip.draggable = true;
+  chip.dataset.id = ev.id;
+  chip.dataset.era = ev.era;
+  chip.textContent = ev.title;
+
+  chip.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", ev.id);
+    setTimeout(() => chip.style.opacity = "0.4", 0);
+  });
+  chip.addEventListener("dragend", () => { chip.style.opacity = "1"; });
+
+  chip.addEventListener("click", () => {
+    if (chip.classList.contains("correct")) return;
+    if (selectedChip === chip) {
+      chip.classList.remove("selected");
+      selectedChip = null;
+      return;
+    }
+    if (selectedChip) selectedChip.classList.remove("selected");
+    selectedChip = chip;
+    chip.classList.add("selected");
+  });
+
+  return chip;
+}
+
+function attachBucketEvents(bucket) {
+  bucket.addEventListener("dragover", e => { e.preventDefault(); bucket.classList.add("dragover"); });
+  bucket.addEventListener("dragleave", () => bucket.classList.remove("dragover"));
+  bucket.addEventListener("drop", e => {
+    e.preventDefault();
+    bucket.classList.remove("dragover");
+    const id = e.dataTransfer.getData("text/plain");
+    const chip = document.querySelector('.event-chip[data-id="' + id + '"]');
+    if (chip) bucket.querySelector(".slot").appendChild(chip);
+  });
+  bucket.addEventListener("click", () => {
+    if (selectedChip) {
+      bucket.querySelector(".slot").appendChild(selectedChip);
+      selectedChip.classList.remove("selected");
+      selectedChip = null;
+    }
+  });
+}
+
+function setupReview() {
+  cardPool.innerHTML = "";
+  buildBuckets();
+  shuffle(EVENTS).forEach(ev => cardPool.appendChild(buildChip(ev)));
+  scoreVal.textContent = "0";
+}
+
+document.getElementById("shuffleBtn").addEventListener("click", setupReview);
+
+document.getElementById("gradeBtn").addEventListener("click", () => {
+  let correct = 0;
+  document.querySelectorAll(".bucket").forEach(bucket => {
+    const eraId = bucket.dataset.era;
+    bucket.querySelectorAll(".event-chip").forEach(chip => {
+      if (chip.classList.contains("correct")) { correct++; return; }
+      if (chip.dataset.era === eraId) {
+        chip.classList.add("correct");
+        correct++;
+      } else {
+        chip.classList.add("wrong");
+        setTimeout(() => {
+          chip.classList.remove("wrong");
+          cardPool.appendChild(chip);
+        }, 400);
+      }
+    });
+  });
+  scoreVal.textContent = correct;
+});
+
+setupReview();
+</script>
+</body>
+</html>
