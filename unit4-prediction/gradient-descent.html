@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>경사하강법 시각화 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  #chart { height: 420px; }
+  .formula {
+    font-size: 1rem;
+    background: var(--color-bg);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: inline-block;
+    margin: 4px 0;
+  }
+  .status-msg {
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+  .status-msg.converged { background: #e3faf3; color: #05875a; }
+  .status-msg.diverged { background: #ffecec; color: #c9302c; }
+  .status-msg.running { background: #eef0ff; color: var(--color-primary-dark); }
+  .log-wrap { max-height: 260px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>📉 경사하강법(Gradient Descent) 시각화</h1>
+    <p>학습률(learning rate)과 시작점을 바꿔가며, 함수의 최솟값을 어떻게 찾아가는지 직접 관찰해보세요.</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label for="fnSelect">함수 선택</label>
+        <select id="fnSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="lr">학습률 α = <span class="value" id="lrVal"></span></label>
+        <input type="range" id="lr" min="0.01" max="1.05" step="0.01" value="0.15" />
+      </div>
+      <div class="control-group">
+        <label for="startX">시작점 x₀ = <span class="value" id="startXVal"></span></label>
+        <input type="range" id="startX" min="-10" max="10" step="0.1" value="-6" />
+      </div>
+    </div>
+    <div class="controls">
+      <button id="stepBtn">한 단계 진행</button>
+      <button id="playBtn">자동 실행 ▶</button>
+      <button class="secondary" id="resetBtn">초기화</button>
+      <span style="color:var(--color-text-muted); font-size:0.85rem;">그래프를 클릭하면 그 지점이 새 시작점이 됩니다.</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div id="statusMsg" class="status-msg running">시작점을 설정하고 실행해보세요.</div>
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="stat-row" style="flex-direction:column; gap:10px;">
+        <div class="stat"><span class="label">반복 횟수 n</span><span class="val" id="statN">0</span></div>
+        <div class="stat"><span class="label">현재 x</span><span class="val" id="statX">-</span></div>
+        <div class="stat"><span class="label">f(x)</span><span class="val" id="statFx">-</span></div>
+        <div class="stat"><span class="label">기울기 f'(x)</span><span class="val" id="statGrad">-</span></div>
+      </div>
+      <p class="formula">x₍n+1₎ = x₍n₎ − α · f'(x₍n₎)</p>
+      <div class="log-wrap">
+        <table class="log-table">
+          <thead><tr><th>n</th><th>x</th><th>f(x)</th><th>f'(x)</th></tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">관찰 포인트</h3>
+    <ul>
+      <li>학습률 α를 너무 크게 하면 값이 수렴하지 않고 <strong>진동하거나 발산</strong>할 수 있습니다.</li>
+      <li>학습률 α를 너무 작게 하면 최솟값에 도달하는 속도가 <strong>매우 느려집니다</strong>.</li>
+      <li>극소점이 여러 개인 함수(②, ③번)에서는 시작점에 따라 <strong>다른 극소점(local minimum)</strong>에 도달할 수 있습니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+// ---- 함수 정의 (f, f', 표시 도메인) ----
+const FUNCTIONS = [
+  {
+    label: "① f(x) = (x − 2)² + 1  (볼록함수, 극소점 1개)",
+    f: x => Math.pow(x - 2, 2) + 1,
+    fp: x => 2 * (x - 2),
+    domain: [-10, 10],
+  },
+  {
+    label: "② f(x) = 0.05x⁴ − 0.8x² + 4  (극소점 2개)",
+    f: x => 0.05 * Math.pow(x, 4) - 0.8 * x * x + 4,
+    fp: x => 0.2 * Math.pow(x, 3) - 1.6 * x,
+    domain: [-10, 10],
+  },
+  {
+    label: "③ f(x) = 0.3x·sin(x) + 0.05x² + 5  (극소점 여러 개)",
+    f: x => 0.3 * x * Math.sin(x) + 0.05 * x * x + 5,
+    fp: x => 0.3 * (Math.sin(x) + x * Math.cos(x)) + 0.1 * x,
+    domain: [-10, 10],
+  },
+];
+
+const fnSelect = document.getElementById("fnSelect");
+FUNCTIONS.forEach((fn, i) => {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = fn.label;
+  fnSelect.appendChild(opt);
+});
+
+const lrInput = document.getElementById("lr");
+const lrVal = document.getElementById("lrVal");
+const startXInput = document.getElementById("startX");
+const startXVal = document.getElementById("startXVal");
+const stepBtn = document.getElementById("stepBtn");
+const playBtn = document.getElementById("playBtn");
+const resetBtn = document.getElementById("resetBtn");
+const statusMsg = document.getElementById("statusMsg");
+const statN = document.getElementById("statN");
+const statX = document.getElementById("statX");
+const statFx = document.getElementById("statFx");
+const statGrad = document.getElementById("statGrad");
+const logBody = document.getElementById("logBody");
+const canvas = document.getElementById("chart");
+const ctx = canvas.getContext("2d");
+
+let state = {
+  fnIndex: 0,
+  lr: parseFloat(lrInput.value),
+  x: parseFloat(startXInput.value),
+  n: 0,
+  history: [],
+  status: "idle", // idle | running | converged | diverged
+  playing: false,
+};
+
+function currentFn() {
+  return FUNCTIONS[state.fnIndex];
+}
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = 420 * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function dataToPixel(x, y, w, h, domain, yMin, yMax) {
+  const px = ((x - domain[0]) / (domain[1] - domain[0])) * w;
+  const py = h - ((y - yMin) / (yMax - yMin)) * h;
+  return [px, py];
+}
+
+function computeYRange(fn, domain) {
+  let yMin = Infinity, yMax = -Infinity;
+  for (let i = 0; i <= 200; i++) {
+    const x = domain[0] + ((domain[1] - domain[0]) * i) / 200;
+    const y = fn.f(x);
+    if (y < yMin) yMin = y;
+    if (y > yMax) yMax = y;
+  }
+  const pad = (yMax - yMin) * 0.15 || 1;
+  return [yMin - pad, yMax + pad];
+}
+
+function draw() {
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = 420;
+  ctx.clearRect(0, 0, w, h);
+
+  const fn = currentFn();
+  const domain = fn.domain;
+  const [yMin, yMax] = computeYRange(fn, domain);
+
+  // curve
+  ctx.beginPath();
+  ctx.strokeStyle = "#4353ff";
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i <= 400; i++) {
+    const x = domain[0] + ((domain[1] - domain[0]) * i) / 400;
+    const y = fn.f(x);
+    const [px, py] = dataToPixel(x, y, w, h, domain, yMin, yMax);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // x-axis guide at y=0 if visible
+  if (yMin < 0 && yMax > 0) {
+    const [x0, y0] = dataToPixel(domain[0], 0, w, h, domain, yMin, yMax);
+    const [x1, y1] = dataToPixel(domain[1], 0, w, h, domain, yMin, yMax);
+    ctx.strokeStyle = "#d5d8e6";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  // history trail
+  state.history.forEach((pt, idx) => {
+    const [px, py] = dataToPixel(pt.x, pt.fx, w, h, domain, yMin, yMax);
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(67, 83, 255, " + (0.15 + 0.5 * (idx / Math.max(1, state.history.length - 1))) + ")";
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // current point + tangent line
+  if (isFinite(state.x)) {
+    const fx = fn.f(state.x);
+    const grad = fn.fp(state.x);
+    const [px, py] = dataToPixel(state.x, fx, w, h, domain, yMin, yMax);
+
+    // tangent line segment
+    const dx = (domain[1] - domain[0]) * 0.06;
+    const [tx0, ty0] = dataToPixel(state.x - dx, fx - grad * dx, w, h, domain, yMin, yMax);
+    const [tx1, ty1] = dataToPixel(state.x + dx, fx + grad * dx, w, h, domain, yMin, yMax);
+    ctx.strokeStyle = "#00c2a8";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(tx0, ty0);
+    ctx.lineTo(tx1, ty1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.fillStyle = "#ff5b77";
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function fmt(n) {
+  return isFinite(n) ? n.toFixed(4) : "발산";
+}
+
+function updateStats() {
+  const fn = currentFn();
+  const fx = fn.f(state.x);
+  const grad = fn.fp(state.x);
+  statN.textContent = state.n;
+  statX.textContent = fmt(state.x);
+  statFx.textContent = fmt(fx);
+  statGrad.textContent = fmt(grad);
+
+  statusMsg.className = "status-msg " + (state.status === "idle" ? "running" : state.status);
+  if (state.status === "converged") {
+    statusMsg.textContent = "✅ 수렴했습니다! (기울기가 거의 0에 가까워짐)";
+  } else if (state.status === "diverged") {
+    statusMsg.textContent = "⚠️ 발산했습니다. 학습률 α를 줄여보세요.";
+  } else {
+    statusMsg.textContent = "진행 중 — n = " + state.n;
+  }
+}
+
+function updateLog() {
+  logBody.innerHTML = "";
+  const rows = state.history.slice(-12);
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + row.n + "</td><td>" + fmt(row.x) + "</td><td>" + fmt(row.fx) + "</td><td>" + fmt(row.grad) + "</td>";
+    logBody.appendChild(tr);
+  });
+}
+
+function step() {
+  if (state.status === "converged" || state.status === "diverged") return;
+  const fn = currentFn();
+  const grad = fn.fp(state.x);
+  const fx = fn.f(state.x);
+  state.history.push({ n: state.n, x: state.x, fx: fx, grad: grad });
+
+  const nextX = state.x - state.lr * grad;
+  state.n += 1;
+  state.x = nextX;
+
+  const domainSpan = fn.domain[1] - fn.domain[0];
+  if (!isFinite(nextX) || Math.abs(nextX) > domainSpan * 3) {
+    state.status = "diverged";
+    setPlaying(false);
+  } else if (Math.abs(grad) < 0.001 && state.n > 1) {
+    state.status = "converged";
+    setPlaying(false);
+  } else {
+    state.status = "running";
+  }
+
+  draw();
+  updateStats();
+  updateLog();
+}
+
+function reset() {
+  state.n = 0;
+  state.x = parseFloat(startXInput.value);
+  state.history = [];
+  state.status = "idle";
+  setPlaying(false);
+  draw();
+  updateStats();
+  updateLog();
+}
+
+let playTimer = null;
+function setPlaying(on) {
+  state.playing = on;
+  playBtn.textContent = on ? "일시정지 ⏸" : "자동 실행 ▶";
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
+  if (on) {
+    playTimer = setInterval(() => {
+      if (state.status === "converged" || state.status === "diverged") {
+        setPlaying(false);
+        return;
+      }
+      step();
+    }, 350);
+  }
+}
+
+fnSelect.addEventListener("change", () => {
+  state.fnIndex = parseInt(fnSelect.value, 10);
+  reset();
+});
+lrInput.addEventListener("input", () => {
+  state.lr = parseFloat(lrInput.value);
+  lrVal.textContent = state.lr.toFixed(2);
+});
+startXInput.addEventListener("input", () => {
+  startXVal.textContent = parseFloat(startXInput.value).toFixed(1);
+  if (state.n === 0) {
+    state.x = parseFloat(startXInput.value);
+    draw();
+    updateStats();
+  }
+});
+stepBtn.addEventListener("click", step);
+playBtn.addEventListener("click", () => setPlaying(!state.playing));
+resetBtn.addEventListener("click", reset);
+
+canvas.addEventListener("click", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const fn = currentFn();
+  const domain = fn.domain;
+  const clickX = domain[0] + ((e.clientX - rect.left) / w) * (domain[1] - domain[0]);
+  startXInput.value = clickX.toFixed(1);
+  startXVal.textContent = clickX.toFixed(1);
+  reset();
+});
+
+window.addEventListener("resize", () => { resizeCanvas(); draw(); });
+
+// init
+lrVal.textContent = state.lr.toFixed(2);
+startXVal.textContent = state.x.toFixed(1);
+resizeCanvas();
+reset();
+</script>
+</body>
+</html>

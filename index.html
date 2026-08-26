@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="assets/common.css" />
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <section class="hero">
+    <h1>인공지능 수학 학습 도구</h1>
+    <p>교과서에서 다루기 어려운 개념을 직접 조작하며 이해하는 인터랙티브 학습 자료 모음</p>
+  </section>
+
+  <section class="unit-section">
+    <h2>II. 자료의 표현</h2>
+    <p class="unit-desc">텍스트, 이미지, 벡터와 행렬을 컴퓨터가 어떻게 숫자로 표현하는지 다룹니다.</p>
+    <div class="card-grid">
+      <a class="tool-card disabled" href="#">
+        <div class="icon">🖼️</div>
+        <h3>이미지의 픽셀 표현 <span class="badge soon">준비중</span></h3>
+        <p>이미지를 픽셀 행렬로 바꾸고 값을 직접 바꿔보기</p>
+      </a>
+      <a class="tool-card disabled" href="#">
+        <div class="icon">📐</div>
+        <h3>벡터와 행렬 연산 <span class="badge soon">준비중</span></h3>
+        <p>벡터의 덧셈·내적을 그림으로 확인하기</p>
+      </a>
+      <a class="tool-card disabled" href="#">
+        <div class="icon">🔤</div>
+        <h3>텍스트 유사도 <span class="badge soon">준비중</span></h3>
+        <p>문장을 벡터로 바꾸고 코사인 유사도 계산하기</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="unit-section">
+    <h2>III. 자료의 분석</h2>
+    <p class="unit-desc">자료의 상관관계, 확률분포, 표본과 추정을 시뮬레이션으로 체감합니다.</p>
+    <div class="card-grid">
+      <a class="tool-card disabled" href="#">
+        <div class="icon">📊</div>
+        <h3>상관관계 시각화 <span class="badge soon">준비중</span></h3>
+        <p>산점도를 조작하며 상관계수 변화 관찰하기</p>
+      </a>
+      <a class="tool-card disabled" href="#">
+        <div class="icon">🎲</div>
+        <h3>표본추출 시뮬레이터 <span class="badge soon">준비중</span></h3>
+        <p>표본을 여러 번 뽑아 대수의 법칙 체감하기</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="unit-section">
+    <h2>IV. 인공지능과 예측</h2>
+    <p class="unit-desc">함수의 최적화와 신경망의 학습 과정을 눈으로 확인합니다.</p>
+    <div class="card-grid">
+      <a class="tool-card" href="unit4-prediction/gradient-descent.html">
+        <div class="icon">📉</div>
+        <h3>경사하강법 시각화 <span class="badge">사용 가능</span></h3>
+        <p>학습률과 시작점을 바꿔가며 최솟값을 찾아가는 과정 관찰하기</p>
+      </a>
+      <a class="tool-card disabled" href="#">
+        <div class="icon">🧠</div>
+        <h3>신경망 플레이그라운드 <span class="badge soon">준비중</span></h3>
+        <p>간단한 신경망의 분류 경계 변화 관찰하기</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="unit-section">
+    <h2>V. 인공지능과 최적화</h2>
+    <p class="unit-desc">최적화 알고리즘이 손실함수 지형을 어떻게 탐색하는지 살펴봅니다.</p>
+    <div class="card-grid">
+      <a class="tool-card disabled" href="#">
+        <div class="icon">🗺️</div>
+        <h3>손실함수 지형 시각화 <span class="badge soon">준비중</span></h3>
+        <p>2변수 손실함수의 등고선과 최적화 경로 살펴보기</p>
+      </a>
+    </div>
+  </section>
+</div>
+
+<div id="site-footer"></div>
+<script src="assets/common.js"></script>
+<script>
+  AIMath.header({ home: "index.html" });
+  AIMath.footer();
+</script>
+</body>
+</html>
