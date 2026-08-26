@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>이미지와 행렬 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .mode-switch { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .mode-switch button {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  .mode-switch button.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+  #modeB { display: none; }
+
+  .layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    font-size: 0.82rem;
+    padding: 7px 13px;
+  }
+  .btn-group button.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  #displayCanvas {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    image-rendering: pixelated;
+    cursor: crosshair;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+  }
+
+  .pixel-info { font-size: 0.88rem; }
+  .pixel-info .swatch {
+    display: inline-block;
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--color-border);
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  .rgb-bar { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  .rgb-bar .row { display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 0.8rem; }
+  .rgb-bar .track { flex: 1; height: 10px; border-radius: 5px; background: var(--color-bg); overflow: hidden; }
+  .rgb-bar .fill { height: 100%; }
+  .rgb-bar .fill.r { background: #ff5b5b; }
+  .rgb-bar .fill.g { background: #35c46a; }
+  .rgb-bar .fill.b { background: #4a7dff; }
+
+  .mini-matrix {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+    margin-top: 10px;
+  }
+  .mini-matrix div {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    border-radius: 3px;
+    color: white;
+    text-shadow: 0 0 2px rgba(0,0,0,0.6);
+  }
+  .mini-matrix div.center { outline: 2px solid var(--color-primary); }
+
+  /* ---- Mode B ---- */
+  .palette { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+  }
+  .swatch-btn.selected { border-color: var(--color-primary); transform: scale(1.1); }
+
+  #paintGrid {
+    display: grid;
+    gap: 2px;
+    aspect-ratio: 1/1;
+    max-width: 460px;
+  }
+  .paint-cell {
+    background: #ffffff;
+    border-radius: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: #333;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🖼️ 이미지와 행렬</h1>
+    <p>사진 한 장이 사실은 숫자로 채워진 행렬이라는 것을, 픽셀을 직접 클릭해서 확인하고 반대로 숫자를 색칠해서 그림을 만들어보며 이해해봅시다.</p>
+  </div>
+
+  <div class="mode-switch">
+    <button id="btnA" class="active">🔍 이미지 → 행렬</button>
+    <button id="btnB">🎨 행렬 → 그림</button>
+  </div>
+
+  <!-- ===================== 모드 A ===================== -->
+  <div id="modeA">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>샘플 이미지</label>
+          <div class="btn-group" id="sampleBtns">
+            <button data-sample="smile">😊 웃는 얼굴</button>
+            <button data-sample="rainbow">🌈 무지개</button>
+            <button data-sample="heart">❤️ 하트</button>
+            <button data-sample="check">🏁 체크무늬</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>내 사진 사용</label>
+          <input type="file" id="fileInput" accept="image/*" />
+        </div>
+        <div class="control-group">
+          <label>해상도 (한 변의 칸 수) = <span class="value" id="gridVal">16</span></label>
+          <input type="range" id="gridSlider" min="6" max="40" step="1" value="16" />
+        </div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>채널 보기</label>
+          <div class="btn-group" id="viewBtns">
+            <button data-view="original" class="active">원본</button>
+            <button data-view="r">R 채널</button>
+            <button data-view="g">G 채널</button>
+            <button data-view="b">B 채널</button>
+            <button data-view="gray">흑백</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>필터</label>
+          <div class="btn-group" id="filterBtns">
+            <button data-filter="none" class="active">없음</button>
+            <button data-filter="invert">반전</button>
+            <button data-filter="threshold">이진화</button>
+          </div>
+        </div>
+        <div class="control-group" id="thresholdGroup" style="display:none;">
+          <label>임계값 = <span class="value" id="thresholdVal">128</span></label>
+          <input type="range" id="thresholdSlider" min="0" max="255" step="1" value="128" />
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <canvas id="displayCanvas"></canvas>
+      </div>
+      <div class="panel pixel-info">
+        <h3 style="margin-top:0;">픽셀 정보</h3>
+        <p id="pixelPos" style="color:var(--color-text-muted);">이미지의 칸을 클릭해보세요</p>
+        <div id="pixelDetail" style="display:none;">
+          <p><span class="swatch" id="pixelSwatch"></span><span id="pixelHex" style="font-family:monospace;"></span></p>
+          <div class="rgb-bar">
+            <div class="row"><span style="width:14px;">R</span><div class="track"><div class="fill r" id="barR"></div></div><span id="valR">0</span></div>
+            <div class="row"><span style="width:14px;">G</span><div class="track"><div class="fill g" id="barG"></div></div><span id="valG">0</span></div>
+            <div class="row"><span style="width:14px;">B</span><div class="track"><div class="fill b" id="barB"></div></div><span id="valB">0</span></div>
+          </div>
+          <p style="font-size:0.8rem; color:var(--color-text-muted); margin-bottom:4px;">그레이스케일 값 = 0.299R + 0.587G + 0.114B = <strong id="grayVal">-</strong></p>
+          <p style="font-size:0.8rem; color:var(--color-text-muted); margin:14px 0 4px;">주변 3×3 행렬 (그레이스케일)</p>
+          <div class="mini-matrix" id="miniMatrix" style="grid-template-columns:repeat(3,1fr); max-width:150px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>사진은 사실 <strong>가로×세로 칸마다 R, G, B 숫자 3개(0~255)</strong>가 저장된 3차원 행렬입니다.</li>
+        <li>해상도(칸 수)를 낮추면 정보량이 줄어들어 그림이 뭉개지는 것을 볼 수 있습니다 — 이것이 이미지 압축의 기본 원리입니다.</li>
+        <li>흑백 변환은 R, G, B를 하나의 숫자로 합치는 <strong>행렬 연산</strong>이고, 반전·이진화는 각 숫자에 간단한 함수를 적용하는 연산입니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== 모드 B ===================== -->
+  <div id="modeB">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>격자 크기</label>
+          <div class="btn-group" id="sizeBtns">
+            <button data-size="6">6×6</button>
+            <button data-size="8" class="active">8×8</button>
+            <button data-size="10">10×10</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>색상 선택</label>
+          <div class="palette" id="palette"></div>
+        </div>
+        <div class="control-group">
+          <label>숫자로 보기</label>
+          <div class="btn-group">
+            <button id="toggleNumBtn">그레이스케일 값 표시</button>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="presetHeart" class="secondary">❤️ 하트 채우기</button>
+        <button id="presetCheck" class="secondary">🏁 체크무늬 채우기</button>
+        <button id="clearGrid" class="secondary">전체 지우기</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="paintGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>색을 칠하는 행동 하나하나가 사실은 <strong>행렬의 한 칸에 숫자(RGB 값)를 써넣는 것</strong>과 같습니다.</li>
+        <li>'숫자로 보기'를 켜면 같은 그림이 색이 아니라 <strong>0~255 사이의 숫자들의 배열</strong>로도 보인다는 것을 확인할 수 있습니다.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+/* ============================================================
+   모드 A: 이미지 → 행렬
+   ============================================================ */
+const SOURCE_SIZE = 256;
+const sourceCanvas = document.createElement("canvas");
+sourceCanvas.width = SOURCE_SIZE;
+sourceCanvas.height = SOURCE_SIZE;
+const sourceCtx = sourceCanvas.getContext("2d");
+
+const displayCanvas = document.getElementById("displayCanvas");
+const dctx = displayCanvas.getContext("2d");
+
+let gridN = 16;
+let pixelData = []; // [row][col] = {r,g,b}
+let currentView = "original";
+let currentFilter = "none";
+let thresholdValue = 128;
+
+function drawSample(name) {
+  const ctx = sourceCtx;
+  const s = SOURCE_SIZE;
+  ctx.clearRect(0, 0, s, s);
+
+  if (name === "smile") {
+    ctx.fillStyle = "#ffd54a";
+    ctx.beginPath(); ctx.arc(s/2, s/2, s*0.46, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#2b2b2b";
+    ctx.beginPath(); ctx.arc(s*0.35, s*0.4, s*0.06, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s*0.65, s*0.4, s*0.06, 0, Math.PI*2); ctx.fill();
+    ctx.lineWidth = s*0.045;
+    ctx.strokeStyle = "#2b2b2b";
+    ctx.beginPath(); ctx.arc(s/2, s*0.52, s*0.28, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  } else if (name === "rainbow") {
+    const colors = ["#ff3b30","#ff9500","#ffcc00","#34c759","#0a84ff","#5856d6","#af52de"];
+    const bandH = s / colors.length;
+    colors.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(0, i*bandH, s, bandH + 1); });
+  } else if (name === "heart") {
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,s,s);
+    ctx.fillStyle = "#ff375f";
+    ctx.beginPath();
+    const x = s/2, y = s*0.32;
+    ctx.moveTo(x, y);
+    ctx.bezierCurveTo(x - s*0.5, y - s*0.35, x - s*0.5, y + s*0.28, x, y + s*0.55);
+    ctx.bezierCurveTo(x + s*0.5, y + s*0.28, x + s*0.5, y - s*0.35, x, y);
+    ctx.fill();
+  } else if (name === "check") {
+    const n = 8, cell = s / n;
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        ctx.fillStyle = (r + c) % 2 === 0 ? "#274690" : "#f2a900";
+        ctx.fillRect(c*cell, r*cell, cell+1, cell+1);
+      }
+    }
+  }
+  resample();
+}
+
+function resample() {
+  const tmp = document.createElement("canvas");
+  tmp.width = gridN; tmp.height = gridN;
+  const tctx = tmp.getContext("2d");
+  tctx.imageSmoothingEnabled = true;
+  tctx.drawImage(sourceCanvas, 0, 0, SOURCE_SIZE, SOURCE_SIZE, 0, 0, gridN, gridN);
+  const data = tctx.getImageData(0, 0, gridN, gridN).data;
+  pixelData = [];
+  for (let row = 0; row < gridN; row++) {
+    const line = [];
+    for (let col = 0; col < gridN; col++) {
+      const i = (row * gridN + col) * 4;
+      line.push({ r: data[i], g: data[i+1], b: data[i+2] });
+    }
+    pixelData.push(line);
+  }
+  renderDisplay();
+  hidePixelDetail();
+}
+
+function gray(p) { return Math.round(0.299*p.r + 0.587*p.g + 0.114*p.b); }
+
+function applyViewAndFilter(p) {
+  let r = p.r, g = p.g, b = p.b;
+
+  if (currentView === "r") { g = 0; b = 0; }
+  else if (currentView === "g") { r = 0; b = 0; }
+  else if (currentView === "b") { r = 0; g = 0; }
+  else if (currentView === "gray") { const gy = gray(p); r = g = b = gy; }
+
+  if (currentFilter === "invert") { r = 255-r; g = 255-g; b = 255-b; }
+  else if (currentFilter === "threshold") {
+    const gy = gray({r,g,b});
+    const v = gy >= thresholdValue ? 255 : 0;
+    r = g = b = v;
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderDisplay() {
+  const rect = displayCanvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  displayCanvas.width = size;
+  displayCanvas.height = size;
+  const cell = size / gridN;
+  for (let row = 0; row < gridN; row++) {
+    for (let col = 0; col < gridN; col++) {
+      dctx.fillStyle = applyViewAndFilter(pixelData[row][col]);
+      dctx.fillRect(col*cell, row*cell, cell+0.5, cell+0.5);
+    }
+  }
+}
+
+function hidePixelDetail() {
+  document.getElementById("pixelDetail").style.display = "none";
+  document.getElementById("pixelPos").style.display = "";
+}
+
+function showPixelDetail(row, col) {
+  const p = pixelData[row][col];
+  document.getElementById("pixelPos").style.display = "none";
+  const detail = document.getElementById("pixelDetail");
+  detail.style.display = "";
+  const hex = "#" + [p.r,p.g,p.b].map(v => v.toString(16).padStart(2,"0")).join("");
+  document.getElementById("pixelSwatch").style.background = hex;
+  document.getElementById("pixelHex").textContent = `(${row}행, ${col}열)  ${hex}`;
+  document.getElementById("valR").textContent = p.r;
+  document.getElementById("valG").textContent = p.g;
+  document.getElementById("valB").textContent = p.b;
+  document.getElementById("barR").style.width = (p.r/255*100)+"%";
+  document.getElementById("barG").style.width = (p.g/255*100)+"%";
+  document.getElementById("barB").style.width = (p.b/255*100)+"%";
+  document.getElementById("grayVal").textContent = gray(p);
+
+  const mini = document.getElementById("miniMatrix");
+  mini.innerHTML = "";
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const rr = row+dr, cc = col+dc;
+      const cellDiv = document.createElement("div");
+      if (rr >= 0 && rr < gridN && cc >= 0 && cc < gridN) {
+        const gv = gray(pixelData[rr][cc]);
+        cellDiv.style.background = `rgb(${gv},${gv},${gv})`;
+        cellDiv.textContent = gv;
+      } else {
+        cellDiv.style.background = "#ddd";
+      }
+      if (dr === 0 && dc === 0) cellDiv.classList.add("center");
+      mini.appendChild(cellDiv);
+    }
+  }
+}
+
+displayCanvas.addEventListener("click", (e) => {
+  const rect = displayCanvas.getBoundingClientRect();
+  const col = Math.floor((e.clientX - rect.left) / rect.width * gridN);
+  const row = Math.floor((e.clientY - rect.top) / rect.height * gridN);
+  if (row >= 0 && row < gridN && col >= 0 && col < gridN) showPixelDetail(row, col);
+});
+
+document.getElementById("sampleBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-sample]");
+  if (!btn) return;
+  drawSample(btn.dataset.sample);
+});
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      sourceCtx.clearRect(0,0,SOURCE_SIZE,SOURCE_SIZE);
+      const scale = Math.max(SOURCE_SIZE/img.width, SOURCE_SIZE/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      sourceCtx.drawImage(img, (SOURCE_SIZE-w)/2, (SOURCE_SIZE-h)/2, w, h);
+      resample();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+const gridSlider = document.getElementById("gridSlider");
+gridSlider.addEventListener("input", () => {
+  gridN = parseInt(gridSlider.value, 10);
+  document.getElementById("gridVal").textContent = gridN;
+  resample();
+});
+
+document.getElementById("viewBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (!btn) return;
+  document.querySelectorAll("#viewBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentView = btn.dataset.view;
+  renderDisplay();
+});
+
+document.getElementById("filterBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-filter]");
+  if (!btn) return;
+  document.querySelectorAll("#filterBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentFilter = btn.dataset.filter;
+  document.getElementById("thresholdGroup").style.display = currentFilter === "threshold" ? "" : "none";
+  renderDisplay();
+});
+
+const thresholdSlider = document.getElementById("thresholdSlider");
+thresholdSlider.addEventListener("input", () => {
+  thresholdValue = parseInt(thresholdSlider.value, 10);
+  document.getElementById("thresholdVal").textContent = thresholdValue;
+  renderDisplay();
+});
+
+window.addEventListener("resize", renderDisplay);
+
+/* ============================================================
+   모드 B: 행렬 → 그림
+   ============================================================ */
+const PALETTE = ["#ffffff","#ff375f","#ff9500","#ffd54a","#34c759","#0a84ff","#5856d6","#2b2b2b"];
+let selectedColor = PALETTE[1];
+let paintSize = 8;
+let showNumbers = false;
+let gridColors = [];
+
+function initPaintGrid(n) {
+  paintSize = n;
+  gridColors = Array.from({length:n}, () => Array.from({length:n}, () => "#ffffff"));
+  renderPaintGrid();
+}
+
+function renderPaintGrid() {
+  const el = document.getElementById("paintGrid");
+  el.style.gridTemplateColumns = `repeat(${paintSize}, 1fr)`;
+  el.innerHTML = "";
+  for (let r = 0; r < paintSize; r++) {
+    for (let c = 0; c < paintSize; c++) {
+      const cell = document.createElement("div");
+      cell.className = "paint-cell";
+      const color = gridColors[r][c];
+      cell.style.background = color;
+      if (showNumbers) {
+        const hex = color.replace("#","");
+        const rr = parseInt(hex.substring(0,2),16), gg = parseInt(hex.substring(2,4),16), bb = parseInt(hex.substring(4,6),16);
+        const gv = Math.round(0.299*rr+0.587*gg+0.114*bb);
+        cell.textContent = gv;
+        cell.style.color = gv > 140 ? "#333" : "#fff";
+      }
+      cell.addEventListener("click", () => {
+        gridColors[r][c] = selectedColor;
+        renderPaintGrid();
+      });
+      el.appendChild(cell);
+    }
+  }
+}
+
+const paletteEl = document.getElementById("palette");
+PALETTE.forEach((c, i) => {
+  const b = document.createElement("div");
+  b.className = "swatch-btn" + (i === 1 ? " selected" : "");
+  b.style.background = c;
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".swatch-btn").forEach(x => x.classList.remove("selected"));
+    b.classList.add("selected");
+    selectedColor = c;
+  });
+  paletteEl.appendChild(b);
+});
+
+document.getElementById("sizeBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-size]");
+  if (!btn) return;
+  document.querySelectorAll("#sizeBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  initPaintGrid(parseInt(btn.dataset.size, 10));
+});
+
+document.getElementById("toggleNumBtn").addEventListener("click", (e) => {
+  showNumbers = !showNumbers;
+  e.target.classList.toggle("active", showNumbers);
+  renderPaintGrid();
+});
+
+document.getElementById("clearGrid").addEventListener("click", () => initPaintGrid(paintSize));
+
+document.getElementById("presetCheck").addEventListener("click", () => {
+  for (let r = 0; r < paintSize; r++)
+    for (let c = 0; c < paintSize; c++)
+      gridColors[r][c] = (r+c) % 2 === 0 ? "#274690" : "#f2a900";
+  renderPaintGrid();
+});
+
+const HEART_BITMAP = [
+  "01100110",
+  "11111111",
+  "11111111",
+  "11111111",
+  "01111110",
+  "00111100",
+  "00011000",
+  "00000000",
+];
+
+document.getElementById("presetHeart").addEventListener("click", () => {
+  const n = paintSize;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const sr = Math.floor(r / n * 8);
+      const sc = Math.floor(c / n * 8);
+      gridColors[r][c] = HEART_BITMAP[sr][sc] === "1" ? "#ff375f" : "#ffffff";
+    }
+  }
+  renderPaintGrid();
+});
+
+/* ============================================================
+   모드 전환
+   ============================================================ */
+document.getElementById("btnA").addEventListener("click", () => {
+  document.getElementById("btnA").classList.add("active");
+  document.getElementById("btnB").classList.remove("active");
+  document.getElementById("modeA").style.display = "";
+  document.getElementById("modeB").style.display = "none";
+});
+document.getElementById("btnB").addEventListener("click", () => {
+  document.getElementById("btnB").classList.add("active");
+  document.getElementById("btnA").classList.remove("active");
+  document.getElementById("modeB").style.display = "";
+  document.getElementById("modeA").style.display = "none";
+  renderPaintGrid();
+});
+
+/* init */
+drawSample("smile");
+initPaintGrid(8);
+</script>
+</body>
+</html>
