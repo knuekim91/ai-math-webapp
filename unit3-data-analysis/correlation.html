@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>상관관계 시각화 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  #scatterCanvas {
+    width: 100%; aspect-ratio: 1/1; border-radius: 10px;
+    border: 1px solid var(--color-border); cursor: crosshair;
+  }
+  .r-gauge {
+    position: relative; height: 14px; border-radius: 999px; margin: 10px 0 4px;
+    background: linear-gradient(90deg, #c9302c, #d9d9d9 50%, #2f9e5c);
+  }
+  .r-gauge .marker {
+    position: absolute; top: -4px; width: 4px; height: 22px; background: #1c1f2b;
+    border-radius: 2px; transform: translateX(-50%);
+  }
+  .r-scale { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>📊 상관관계 시각화</h1>
+    <p>산점도를 직접 만들어보며 두 변수 사이의 상관계수가 어떻게 변하는지 확인해봅시다.</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label>예시 데이터</label>
+        <div class="btn-group" id="presetBtns">
+          <button data-preset="posStrong">강한 양의 상관</button>
+          <button data-preset="negStrong">강한 음의 상관</button>
+          <button data-preset="none">상관관계 없음</button>
+          <button data-preset="nonlinear">비선형 (U자형)</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="showLine" checked> 회귀직선 보기
+        </label>
+      </div>
+    </div>
+    <div class="controls">
+      <p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">
+        빈 곳을 클릭하면 점이 추가되고, 점 위를 눌러서 끌면 위치를 옮길 수 있습니다.
+      </p>
+      <button class="secondary" id="undoBtn">마지막 점 삭제</button>
+      <button class="secondary" id="clearBtn">전체 지우기</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <canvas id="scatterCanvas"></canvas>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0;">상관계수</h3>
+      <div class="stat-row" style="flex-direction:column; gap:10px;">
+        <div class="stat"><span class="label">점의 개수 n</span><span class="val" id="statN">0</span></div>
+        <div class="stat"><span class="label">상관계수 r</span><span class="val" id="statR">-</span></div>
+      </div>
+      <div class="r-gauge"><div class="marker" id="rMarker" style="left:50%;"></div></div>
+      <div class="r-scale"><span>-1</span><span>0</span><span>+1</span></div>
+      <p id="interpretation" style="font-size:0.88rem; margin-top:14px;"></p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">관찰 포인트</h3>
+    <ul>
+      <li>r이 <strong>+1에 가까울수록</strong> 강한 양의 상관, <strong>-1에 가까울수록</strong> 강한 음의 상관입니다.</li>
+      <li>"비선형" 예시처럼 두 변수 사이에 뚜렷한 관계가 있어도, 그 관계가 <strong>직선 형태가 아니면 r이 0에 가깝게</strong> 나올 수 있습니다 — 상관계수는 '직선 관계'만 측정한다는 한계가 있습니다.</li>
+      <li>상관관계가 있다고 해서 <strong>인과관계가 있는 것은 아닙니다.</strong></li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+const canvas = document.getElementById("scatterCanvas");
+const ctx = canvas.getContext("2d");
+const RANGE = [0, 10];
+
+let points = [];
+let dragging = null;
+
+function toCanvas(x, y, size) {
+  const scale = size / (RANGE[1] - RANGE[0]);
+  return [ (x - RANGE[0]) * scale, size - (y - RANGE[0]) * scale ];
+}
+function toData(px, py, size) {
+  const scale = size / (RANGE[1] - RANGE[0]);
+  return [ px / scale + RANGE[0], (size - py) / scale + RANGE[0] ];
+}
+
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function genPreset(name) {
+  const pts = [];
+  if (name === "posStrong") {
+    for (let i = 0; i < 16; i++) {
+      const x = Math.random() * 8 + 1;
+      const y = Math.max(0.3, Math.min(9.7, x + randn() * 0.7));
+      pts.push({ x, y });
+    }
+  } else if (name === "negStrong") {
+    for (let i = 0; i < 16; i++) {
+      const x = Math.random() * 8 + 1;
+      const y = Math.max(0.3, Math.min(9.7, (10 - x) + randn() * 0.7));
+      pts.push({ x, y });
+    }
+  } else if (name === "none") {
+    for (let i = 0; i < 40; i++) {
+      pts.push({ x: Math.random() * 9 + 0.5, y: Math.random() * 9 + 0.5 });
+    }
+  } else if (name === "nonlinear") {
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * 9 + 0.5;
+      const y = Math.max(0.3, Math.min(9.7, Math.pow(x - 5, 2) * 0.35 + 0.5 + randn() * 0.4));
+      pts.push({ x, y });
+    }
+  }
+  return pts;
+}
+
+function pearson(pts) {
+  const n = pts.length;
+  if (n < 2) return null;
+  const mx = pts.reduce((s, p) => s + p.x, 0) / n;
+  const my = pts.reduce((s, p) => s + p.y, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  pts.forEach(p => {
+    sxy += (p.x - mx) * (p.y - my);
+    sxx += (p.x - mx) ** 2;
+    syy += (p.y - my) ** 2;
+  });
+  if (sxx === 0 || syy === 0) return null;
+  return sxy / Math.sqrt(sxx * syy);
+}
+
+function render() {
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  canvas.width = size; canvas.height = size;
+  ctx.clearRect(0, 0, size, size);
+
+  ctx.strokeStyle = "#e6e8f0"; ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const [gx] = toCanvas(i, 0, size);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, size); ctx.stroke();
+    const [, gy] = toCanvas(0, i, size);
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(size, gy); ctx.stroke();
+  }
+
+  const r = pearson(points);
+
+  if (document.getElementById("showLine").checked && r !== null && points.length >= 2) {
+    const n = points.length;
+    const mx = points.reduce((s, p) => s + p.x, 0) / n;
+    const my = points.reduce((s, p) => s + p.y, 0) / n;
+    let sxy = 0, sxx = 0;
+    points.forEach(p => { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; });
+    if (sxx > 0) {
+      const slope = sxy / sxx;
+      const intercept = my - slope * mx;
+      const [x0, y0] = toCanvas(RANGE[0], slope * RANGE[0] + intercept, size);
+      const [x1, y1] = toCanvas(RANGE[1], slope * RANGE[1] + intercept, size);
+      ctx.strokeStyle = "#2f9e5c"; ctx.lineWidth = 2.5; ctx.setLineDash([7, 5]);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  points.forEach(p => {
+    const [px, py] = toCanvas(p.x, p.y, size);
+    ctx.beginPath(); ctx.fillStyle = "#2857a6";
+    ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "white"; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  document.getElementById("statN").textContent = points.length;
+  if (r === null) {
+    document.getElementById("statR").textContent = "-";
+    document.getElementById("rMarker").style.left = "50%";
+    document.getElementById("interpretation").textContent = "점을 2개 이상 찍어보세요.";
+  } else {
+    document.getElementById("statR").textContent = r.toFixed(3);
+    document.getElementById("rMarker").style.left = ((r + 1) / 2 * 100) + "%";
+    const a = Math.abs(r);
+    let desc = a > 0.7 ? "강한" : a > 0.3 ? "중간 정도의" : "거의 없는";
+    let dir = r > 0.05 ? "양의" : r < -0.05 ? "음의" : "";
+    document.getElementById("interpretation").textContent = `${desc} ${dir} 상관관계입니다.`;
+  }
+}
+
+canvas.addEventListener("mousedown", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const size = rect.width;
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  let closest = null, closestDist = Infinity;
+  points.forEach((p, i) => {
+    const [cx, cy] = toCanvas(p.x, p.y, size);
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < closestDist) { closestDist = d; closest = i; }
+  });
+  if (closest !== null && closestDist < 18) {
+    dragging = closest;
+  } else if (points.length < 40) {
+    const [dx, dy] = toData(px, py, size);
+    points.push({ x: Math.max(0, Math.min(10, dx)), y: Math.max(0, Math.min(10, dy)) });
+    render();
+  }
+});
+window.addEventListener("mousemove", (e) => {
+  if (dragging === null) return;
+  const rect = canvas.getBoundingClientRect();
+  const size = rect.width;
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const [dx, dy] = toData(px, py, size);
+  points[dragging] = { x: Math.max(0, Math.min(10, dx)), y: Math.max(0, Math.min(10, dy)) };
+  render();
+});
+window.addEventListener("mouseup", () => { dragging = null; });
+window.addEventListener("resize", render);
+
+document.getElementById("presetBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-preset]");
+  if (!btn) return;
+  points = genPreset(btn.dataset.preset);
+  render();
+});
+document.getElementById("showLine").addEventListener("change", render);
+document.getElementById("undoBtn").addEventListener("click", () => { points.pop(); render(); });
+document.getElementById("clearBtn").addEventListener("click", () => { points = []; render(); });
+
+points = genPreset("posStrong");
+render();
+</script>
+</body>
+</html>

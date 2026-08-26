@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>표본추출 시뮬레이터 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+  .btn-group button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  .hist-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .hist-pair { grid-template-columns: 1fr; } }
+  .hist-block h4 { margin: 0 0 8px; font-size: 0.9rem; text-align: center; }
+  canvas.hist { width: 100%; height: 220px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🎲 표본추출 시뮬레이터</h1>
+    <p>모집단에서 표본을 반복해서 뽑아 표본평균들이 어떤 분포를 이루는지 관찰하며, 대수의 법칙과 표준오차를 체감해봅시다.</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label>모집단 분포</label>
+        <div class="btn-group" id="distBtns">
+          <button data-dist="uniform" class="active">균등분포</button>
+          <button data-dist="normal">종 모양 분포</button>
+          <button data-dist="skewed">치우친 분포</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>표본 크기 n = <span class="value" id="nVal">5</span></label>
+        <input type="range" id="nSlider" min="1" max="50" step="1" value="5" />
+      </div>
+    </div>
+    <div class="controls">
+      <button id="drawOneBtn">표본 1개 뽑기</button>
+      <button id="draw100Btn">100번 반복 뽑기</button>
+      <button class="secondary" id="resetBtn">초기화</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="hist-pair">
+      <div class="hist-block">
+        <h4>모집단 분포</h4>
+        <canvas class="hist" id="popHist"></canvas>
+      </div>
+      <div class="hist-block">
+        <h4>표본평균의 분포</h4>
+        <canvas class="hist" id="meanHist"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="stat-row">
+      <div class="stat"><span class="label">시행 횟수</span><span class="val" id="statTrials">0</span></div>
+      <div class="stat"><span class="label">모집단 평균 μ</span><span class="val" id="statPopMean">-</span></div>
+      <div class="stat"><span class="label">표본평균들의 평균</span><span class="val" id="statSampleMean">-</span></div>
+      <div class="stat"><span class="label">표본평균들의 표준편차 (실험)</span><span class="val" id="statEmpSE">-</span></div>
+      <div class="stat"><span class="label">이론적 표준오차 σ/√n</span><span class="val" id="statTheorySE">-</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">관찰 포인트</h3>
+    <ul>
+      <li>시행 횟수를 늘릴수록 <strong>표본평균들의 평균이 모집단 평균 μ에 가까워집니다</strong> (대수의 법칙).</li>
+      <li>표본 크기 n을 키우면 표본평균의 분포가 <strong>더 좁고 뾰족해집니다</strong> — 표준오차 σ/√n이 작아지기 때문입니다.</li>
+      <li>모집단이 어떤 모양이든(균등·치우침 등) <strong>표본평균의 분포는 n이 커질수록 종 모양(정규분포)에 가까워집니다</strong> — 중심극한정리입니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+const DISTS = {
+  uniform: { mean: 50, sd: 100 / Math.sqrt(12), range: [0, 100], sample: () => Math.random() * 100 },
+  normal: { mean: 50, sd: 15, range: [0, 100], sample: () => 50 + randn() * 15 },
+  skewed: { mean: 20, sd: 20, range: [0, 100], sample: () => -Math.log(1 - Math.random()) * 20 },
+};
+
+let currentDist = "uniform";
+let n = 5;
+let sampleMeans = [];
+
+const popValues = [];
+function regeneratePopulation() {
+  popValues.length = 0;
+  const d = DISTS[currentDist];
+  for (let i = 0; i < 4000; i++) popValues.push(d.sample());
+}
+
+function drawHistogram(canvas, values, range, color, meanValue) {
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(rect.width, 260), h = 220;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+
+  const binCount = 24;
+  const [lo, hi] = range;
+  const binW = (hi - lo) / binCount;
+  const counts = new Array(binCount).fill(0);
+  values.forEach(v => {
+    let idx = Math.floor((v - lo) / binW);
+    idx = Math.max(0, Math.min(binCount - 1, idx));
+    counts[idx]++;
+  });
+  const maxCount = Math.max(1, ...counts);
+  const padBottom = 4, padTop = 6;
+  const barAreaH = h - padBottom - padTop;
+  const barW = w / binCount;
+
+  ctx.fillStyle = color;
+  counts.forEach((c, i) => {
+    const barH = (c / maxCount) * barAreaH;
+    ctx.fillRect(i * barW + 1, h - padBottom - barH, barW - 2, barH);
+  });
+
+  if (meanValue !== undefined && meanValue !== null) {
+    const mx = ((meanValue - lo) / (hi - lo)) * w;
+    ctx.strokeStyle = "#c9302c"; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(mx, 0); ctx.lineTo(mx, h); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function render() {
+  const d = DISTS[currentDist];
+  drawHistogram(document.getElementById("popHist"), popValues, d.range, "#8aa3d6", d.mean);
+  drawHistogram(document.getElementById("meanHist"), sampleMeans, d.range, "#2f9e5c", d.mean);
+
+  document.getElementById("statTrials").textContent = sampleMeans.length;
+  document.getElementById("statPopMean").textContent = d.mean.toFixed(2);
+  document.getElementById("statTheorySE").textContent = (d.sd / Math.sqrt(n)).toFixed(2);
+
+  if (sampleMeans.length > 0) {
+    const m = sampleMeans.reduce((s, v) => s + v, 0) / sampleMeans.length;
+    const variance = sampleMeans.reduce((s, v) => s + (v - m) ** 2, 0) / sampleMeans.length;
+    document.getElementById("statSampleMean").textContent = m.toFixed(2);
+    document.getElementById("statEmpSE").textContent = Math.sqrt(variance).toFixed(2);
+  } else {
+    document.getElementById("statSampleMean").textContent = "-";
+    document.getElementById("statEmpSE").textContent = "-";
+  }
+}
+
+function drawOneSample() {
+  const d = DISTS[currentDist];
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += d.sample();
+  sampleMeans.push(sum / n);
+}
+
+document.getElementById("distBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-dist]");
+  if (!btn) return;
+  document.querySelectorAll("#distBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentDist = btn.dataset.dist;
+  sampleMeans = [];
+  regeneratePopulation();
+  render();
+});
+
+const nSlider = document.getElementById("nSlider");
+nSlider.addEventListener("input", () => {
+  n = parseInt(nSlider.value, 10);
+  document.getElementById("nVal").textContent = n;
+  sampleMeans = [];
+  render();
+});
+
+document.getElementById("drawOneBtn").addEventListener("click", () => { drawOneSample(); render(); });
+document.getElementById("draw100Btn").addEventListener("click", () => {
+  for (let i = 0; i < 100; i++) drawOneSample();
+  render();
+});
+document.getElementById("resetBtn").addEventListener("click", () => { sampleMeans = []; render(); });
+
+window.addEventListener("resize", render);
+
+regeneratePopulation();
+render();
+</script>
+</body>
+</html>
