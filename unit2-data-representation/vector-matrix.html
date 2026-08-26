@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>벡터와 행렬 연산 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .mode-switch { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .mode-switch button {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+  #modeMat { display: none; }
+
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    font-size: 0.82rem;
+    padding: 7px 13px;
+  }
+  .btn-group button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  #vecCanvas { width: 100%; aspect-ratio: 1/1; border-radius: 10px; border: 1px solid var(--color-border); cursor: grab; }
+
+  .vec-inputs { display: flex; gap: 10px; flex-wrap: wrap; }
+  .vec-inputs .grp { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+  .vec-inputs input[type="number"] { width: 56px; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--color-border); font-family: monospace; }
+
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; margin: 6px 0; }
+  .legend-row .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  /* 행렬 모드 */
+  .mat-pair { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .mat-block h4 { margin: 0 0 8px; font-size: 0.9rem; }
+  .mat-grid { display: grid; gap: 6px; }
+  .mat-grid input {
+    width: 52px; height: 40px; text-align: center;
+    border-radius: 6px; border: 1px solid var(--color-border); font-family: monospace; font-size: 0.9rem;
+  }
+  .mat-size-select { font-size: 0.82rem; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--color-border); }
+
+  .result-grid { display: grid; gap: 6px; }
+  .result-cell {
+    width: 52px; height: 40px; display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; background: var(--color-bg); font-family: monospace; font-weight: 700;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .result-cell:hover { border-color: var(--color-primary); }
+  .result-cell.selected { border-color: var(--color-primary); background: #eef0ff; }
+  .warn { color: #c9302c; font-size: 0.85rem; margin-top: 6px; }
+  .step-box {
+    font-family: monospace;
+    font-size: 0.85rem;
+    background: var(--color-bg);
+    border-radius: 8px;
+    padding: 12px 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>📐 벡터와 행렬 연산</h1>
+    <p>화살표를 직접 끌어보며 벡터의 덧셈·뺄셈·내적을 눈으로 확인하고, 행렬 곱셈은 칸을 눌러 계산 과정을 하나씩 뜯어봅시다.</p>
+  </div>
+
+  <div class="mode-switch">
+    <button id="btnVec" class="active">➡️ 벡터의 연산</button>
+    <button id="btnMat">▦ 행렬의 연산</button>
+  </div>
+
+  <!-- ===================== 벡터 모드 ===================== -->
+  <div id="modeVec">
+    <div class="panel">
+      <div class="controls">
+        <div class="vec-inputs">
+          <span style="font-weight:700; color:#2857a6;">A</span>
+          <div class="grp">x <input type="number" id="ax" value="4"></div>
+          <div class="grp">y <input type="number" id="ay" value="1"></div>
+        </div>
+        <div class="vec-inputs">
+          <span style="font-weight:700; color:#c9302c;">B</span>
+          <div class="grp">x <input type="number" id="bx" value="1"></div>
+          <div class="grp">y <input type="number" id="by" value="3"></div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>연산 선택</label>
+          <div class="btn-group" id="vecOpBtns">
+            <button data-op="add" class="active">A + B</button>
+            <button data-op="sub">A − B</button>
+            <button data-op="scale">kA (스칼라배)</button>
+            <button data-op="dot">A · B (내적)</button>
+          </div>
+        </div>
+        <div class="control-group" id="scaleGroup" style="display:none;">
+          <label>k = <span class="value" id="kVal">2</span></label>
+          <input type="range" id="kSlider" min="-3" max="3" step="0.5" value="2" />
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <canvas id="vecCanvas"></canvas>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0;">계산 결과</h3>
+        <div class="legend-row"><span class="dot" style="background:#2857a6;"></span> A = (<span id="showAx"></span>, <span id="showAy"></span>), |A| = <span id="showAmag"></span></div>
+        <div class="legend-row"><span class="dot" style="background:#c9302c;"></span> B = (<span id="showBx"></span>, <span id="showBy"></span>), |B| = <span id="showBmag"></span></div>
+        <div class="legend-row"><span class="dot" style="background:#2f9e5c;"></span> 결과: <span id="resultLabel"></span></div>
+        <div class="step-box" id="vecStepBox" style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>벡터 A, B의 화살표 끝점을 <strong>직접 드래그</strong>해서 좌표를 바꿔볼 수 있습니다.</li>
+        <li>덧셈은 평행사변형으로, 내적은 두 벡터 사이의 각도로 그 의미를 확인할 수 있습니다.</li>
+        <li>내적 값이 0이면 두 벡터가 <strong>서로 수직</strong>이라는 뜻입니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== 행렬 모드 ===================== -->
+  <div id="modeMat">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>행렬 A 크기</label>
+          <select class="mat-size-select" id="sizeA">
+            <option value="2,2">2×2</option>
+            <option value="2,3">2×3</option>
+            <option value="3,2">3×2</option>
+            <option value="3,3">3×3</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>행렬 B 크기</label>
+          <select class="mat-size-select" id="sizeB">
+            <option value="2,2">2×2</option>
+            <option value="2,3">2×3</option>
+            <option value="3,2">3×2</option>
+            <option value="3,3">3×3</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>연산 선택</label>
+          <div class="btn-group" id="matOpBtns">
+            <button data-op="add" class="active">A + B</button>
+            <button data-op="sub">A − B</button>
+            <button data-op="scale">kA (스칼라배)</button>
+            <button data-op="mul">A × B (곱셈)</button>
+          </div>
+        </div>
+        <div class="control-group" id="matScaleGroup" style="display:none;">
+          <label>k = <span class="value" id="matKVal">2</span></label>
+          <input type="range" id="matKSlider" min="-3" max="3" step="1" value="2" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="mat-pair">
+        <div class="mat-block">
+          <h4>행렬 A</h4>
+          <div class="mat-grid" id="gridA"></div>
+        </div>
+        <div class="mat-block">
+          <h4>행렬 B</h4>
+          <div class="mat-grid" id="gridB"></div>
+        </div>
+        <div class="mat-block">
+          <h4>결과</h4>
+          <div class="result-grid" id="gridResult"></div>
+          <p class="warn" id="matWarn" style="display:none;"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">계산 과정</h3>
+      <p style="color:var(--color-text-muted); font-size:0.85rem;">곱셈 결과에서 칸을 클릭하면 그 값이 어떻게 계산됐는지 보여줍니다.</p>
+      <div class="step-box" id="matStepBox">연산 결과의 칸을 눌러보세요.</div>
+    </div>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+/* ============================================================
+   벡터 모드
+   ============================================================ */
+const vecCanvas = document.getElementById("vecCanvas");
+const vctx = vecCanvas.getContext("2d");
+const RANGE = 6; // -RANGE ~ +RANGE
+
+let A = { x: 4, y: 1 };
+let B = { x: 1, y: 3 };
+let vecOp = "add";
+let k = 2;
+let dragging = null; // 'A' | 'B' | null
+
+function toCanvas(x, y, size) {
+  const scale = size / (RANGE * 2);
+  return [size/2 + x*scale, size/2 - y*scale];
+}
+function toData(px, py, size) {
+  const scale = size / (RANGE * 2);
+  return [(px - size/2) / scale, (size/2 - py) / scale];
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, color, dashed) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash(dashed ? [6,4] : []);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.setLineDash([]);
+  const angle = Math.atan2(y2-y1, x2-x1);
+  const headLen = 10;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen*Math.cos(angle - Math.PI/6), y2 - headLen*Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x2 - headLen*Math.cos(angle + Math.PI/6), y2 - headLen*Math.sin(angle + Math.PI/6));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function mag(v) { return Math.sqrt(v.x*v.x + v.y*v.y); }
+function dot(u, v) { return u.x*v.x + u.y*v.y; }
+
+function renderVec() {
+  const rect = vecCanvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  vecCanvas.width = size; vecCanvas.height = size;
+  vctx.clearRect(0,0,size,size);
+
+  // 격자
+  vctx.strokeStyle = "#e6e8f0";
+  vctx.lineWidth = 1;
+  for (let i = -RANGE; i <= RANGE; i++) {
+    const [x0,] = toCanvas(i, 0, size);
+    vctx.beginPath(); vctx.moveTo(x0, 0); vctx.lineTo(x0, size); vctx.stroke();
+    const [, y0] = toCanvas(0, i, size);
+    vctx.beginPath(); vctx.moveTo(0, y0); vctx.lineTo(size, y0); vctx.stroke();
+  }
+  // 축
+  vctx.strokeStyle = "#a9adbd"; vctx.lineWidth = 1.5;
+  const [ox, oy] = toCanvas(0,0,size);
+  vctx.beginPath(); vctx.moveTo(0, oy); vctx.lineTo(size, oy); vctx.stroke();
+  vctx.beginPath(); vctx.moveTo(ox, 0); vctx.lineTo(ox, size); vctx.stroke();
+
+  const [ax, ay] = toCanvas(A.x, A.y, size);
+  const [bx, by] = toCanvas(B.x, B.y, size);
+
+  drawArrow(vctx, ox, oy, ax, ay, "#2857a6", false);
+  drawArrow(vctx, ox, oy, bx, by, "#c9302c", false);
+
+  let result = null, stepText = "";
+  if (vecOp === "add") {
+    result = { x: A.x+B.x, y: A.y+B.y };
+    const [bx2, by2] = toCanvas(result.x, result.y, size);
+    drawArrow(vctx, ax, ay, bx2, by2, "#c9302c", true); // B translated to tip of A
+    drawArrow(vctx, ox, oy, bx2, by2, "#2f9e5c", false);
+    stepText = `A + B = (${A.x}+${B.x}, ${A.y}+${B.y}) = (${result.x}, ${result.y})`;
+  } else if (vecOp === "sub") {
+    result = { x: A.x-B.x, y: A.y-B.y };
+    const negB = { x: -B.x, y: -B.y };
+    const [nbx, nby] = toCanvas(A.x+negB.x, A.y+negB.y, size);
+    drawArrow(vctx, ax, ay, nbx, nby, "#c9302c", true);
+    drawArrow(vctx, ox, oy, nbx, nby, "#2f9e5c", false);
+    stepText = `A − B = (${A.x}-${B.x}, ${A.y}-${B.y}) = (${result.x}, ${result.y})`;
+  } else if (vecOp === "scale") {
+    result = { x: k*A.x, y: k*A.y };
+    const [kx, ky] = toCanvas(result.x, result.y, size);
+    drawArrow(vctx, ox, oy, kx, ky, "#2f9e5c", false);
+    stepText = `${k} × A = (${k}×${A.x}, ${k}×${A.y}) = (${result.x}, ${result.y})`;
+  } else if (vecOp === "dot") {
+    const d = dot(A, B);
+    const cosT = d / (mag(A)*mag(B) || 1);
+    const theta = Math.acos(Math.max(-1, Math.min(1, cosT))) * 180 / Math.PI;
+    // 각도 호
+    const r = 34;
+    const a1 = Math.atan2(-A.y, A.x), a2 = Math.atan2(-B.y, B.x);
+    vctx.strokeStyle = "#8a5cff"; vctx.lineWidth = 2;
+    vctx.beginPath(); vctx.arc(ox, oy, r, Math.min(a1,a2), Math.max(a1,a2)); vctx.stroke();
+    stepText = `A · B = |A||B|cosθ\n= ${mag(A).toFixed(2)} × ${mag(B).toFixed(2)} × cos(${theta.toFixed(1)}°)\n= ${d.toFixed(2)}\n\n` +
+      (Math.abs(d) < 0.05 ? "→ 내적이 0에 가까움: 두 벡터는 거의 수직입니다." : (d > 0 ? "→ 내적이 양수: 두 벡터는 예각을 이룹니다." : "→ 내적이 음수: 두 벡터는 둔각을 이룹니다."));
+  }
+
+  document.getElementById("showAx").textContent = A.x.toFixed(1);
+  document.getElementById("showAy").textContent = A.y.toFixed(1);
+  document.getElementById("showBx").textContent = B.x.toFixed(1);
+  document.getElementById("showBy").textContent = B.y.toFixed(1);
+  document.getElementById("showAmag").textContent = mag(A).toFixed(2);
+  document.getElementById("showBmag").textContent = mag(B).toFixed(2);
+  document.getElementById("resultLabel").textContent = result ? `(${result.x.toFixed(2)}, ${result.y.toFixed(2)})` : `${dot(A,B).toFixed(2)} (스칼라)`;
+  document.getElementById("vecStepBox").textContent = stepText;
+}
+
+["ax","ay","bx","by"].forEach(id => {
+  document.getElementById(id).addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value) || 0;
+    if (id === "ax") A.x = v; if (id === "ay") A.y = v;
+    if (id === "bx") B.x = v; if (id === "by") B.y = v;
+    renderVec();
+  });
+});
+
+document.getElementById("vecOpBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-op]");
+  if (!btn) return;
+  document.querySelectorAll("#vecOpBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  vecOp = btn.dataset.op;
+  document.getElementById("scaleGroup").style.display = vecOp === "scale" ? "" : "none";
+  renderVec();
+});
+
+const kSlider = document.getElementById("kSlider");
+kSlider.addEventListener("input", () => {
+  k = parseFloat(kSlider.value);
+  document.getElementById("kVal").textContent = k;
+  renderVec();
+});
+
+function syncInputs() {
+  document.getElementById("ax").value = A.x;
+  document.getElementById("ay").value = A.y;
+  document.getElementById("bx").value = B.x;
+  document.getElementById("by").value = B.y;
+}
+
+vecCanvas.addEventListener("mousedown", (e) => {
+  const rect = vecCanvas.getBoundingClientRect();
+  const size = rect.width;
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const [ax, ay] = toCanvas(A.x, A.y, size);
+  const [bx, by] = toCanvas(B.x, B.y, size);
+  const dA = Math.hypot(px-ax, py-ay), dB = Math.hypot(px-bx, py-by);
+  if (dA < 22 && dA <= dB) dragging = "A";
+  else if (dB < 22) dragging = "B";
+});
+window.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  const rect = vecCanvas.getBoundingClientRect();
+  const size = rect.width;
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const [dx, dy] = toData(px, py, size);
+  const snapped = { x: Math.round(dx*2)/2, y: Math.round(dy*2)/2 };
+  if (dragging === "A") A = snapped; else B = snapped;
+  syncInputs();
+  renderVec();
+});
+window.addEventListener("mouseup", () => { dragging = null; });
+
+window.addEventListener("resize", renderVec);
+
+/* ============================================================
+   행렬 모드
+   ============================================================ */
+let matA = [[1,2],[3,4]];
+let matB = [[5,6],[7,8]];
+let matOp = "add";
+let matK = 2;
+
+function makeMatrix(rows, cols, fillFrom) {
+  const m = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      row.push(fillFrom && fillFrom[r] && fillFrom[r][c] !== undefined ? fillFrom[r][c] : 1);
+    }
+    m.push(row);
+  }
+  return m;
+}
+
+function renderMatGrid(containerId, matrix, editable) {
+  const el = document.getElementById(containerId);
+  const rows = matrix.length, cols = matrix[0].length;
+  el.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  el.innerHTML = "";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.value = matrix[r][c];
+      input.addEventListener("input", () => {
+        matrix[r][c] = parseFloat(input.value) || 0;
+        computeMatrix();
+      });
+      el.appendChild(input);
+    }
+  }
+}
+
+function computeMatrix() {
+  const warnEl = document.getElementById("matWarn");
+  const resultEl = document.getElementById("gridResult");
+  warnEl.style.display = "none";
+  const rA = matA.length, cA = matA[0].length;
+  const rB = matB.length, cB = matB[0].length;
+
+  let result = null;
+
+  if (matOp === "add" || matOp === "sub") {
+    if (rA !== rB || cA !== cB) {
+      warnEl.textContent = "덧셈/뺄셈은 두 행렬의 크기가 같아야 합니다.";
+      warnEl.style.display = "";
+      resultEl.style.gridTemplateColumns = "1fr";
+      resultEl.innerHTML = "";
+      return;
+    }
+    result = matA.map((row, r) => row.map((v, c) => matOp === "add" ? v + matB[r][c] : v - matB[r][c]));
+  } else if (matOp === "scale") {
+    result = matA.map(row => row.map(v => matK * v));
+  } else if (matOp === "mul") {
+    if (cA !== rB) {
+      warnEl.textContent = `곱셈 A×B는 A의 열 수(${cA})와 B의 행 수(${rB})가 같아야 합니다.`;
+      warnEl.style.display = "";
+      resultEl.style.gridTemplateColumns = "1fr";
+      resultEl.innerHTML = "";
+      return;
+    }
+    result = [];
+    for (let r = 0; r < rA; r++) {
+      const row = [];
+      for (let c = 0; c < cB; c++) {
+        let sum = 0;
+        for (let i = 0; i < cA; i++) sum += matA[r][i] * matB[i][c];
+        row.push(sum);
+      }
+      result.push(row);
+    }
+  }
+
+  resultEl.style.gridTemplateColumns = `repeat(${result[0].length}, 1fr)`;
+  resultEl.innerHTML = "";
+  result.forEach((row, r) => {
+    row.forEach((v, c) => {
+      const cell = document.createElement("div");
+      cell.className = "result-cell";
+      cell.textContent = Number.isInteger(v) ? v : v.toFixed(1);
+      if (matOp === "mul") {
+        cell.addEventListener("click", () => {
+          document.querySelectorAll(".result-cell").forEach(x => x.classList.remove("selected"));
+          cell.classList.add("selected");
+          const terms = [];
+          for (let i = 0; i < cA; i++) terms.push(`${matA[r][i]}×${matB[i][c]}`);
+          document.getElementById("matStepBox").textContent =
+            `결과[${r+1}행,${c+1}열] = (A의 ${r+1}행) · (B의 ${c+1}열)\n= ${terms.join(" + ")}\n= ${v}`;
+        });
+      }
+      resultEl.appendChild(cell);
+    });
+  });
+}
+
+function rebuildMatrices() {
+  const [rA, cA] = document.getElementById("sizeA").value.split(",").map(Number);
+  const [rB, cB] = document.getElementById("sizeB").value.split(",").map(Number);
+  matA = makeMatrix(rA, cA, matA);
+  matB = makeMatrix(rB, cB, matB);
+  renderMatGrid("gridA", matA, true);
+  renderMatGrid("gridB", matB, true);
+  computeMatrix();
+}
+
+document.getElementById("sizeA").addEventListener("change", rebuildMatrices);
+document.getElementById("sizeB").addEventListener("change", rebuildMatrices);
+
+document.getElementById("matOpBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-op]");
+  if (!btn) return;
+  document.querySelectorAll("#matOpBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  matOp = btn.dataset.op;
+  document.getElementById("matScaleGroup").style.display = matOp === "scale" ? "" : "none";
+  document.getElementById("matStepBox").textContent = matOp === "mul" ? "결과의 칸을 눌러보세요." : "덧셈·뺄셈·스칼라배는 칸별로 바로 계산됩니다.";
+  computeMatrix();
+});
+
+const matKSlider = document.getElementById("matKSlider");
+matKSlider.addEventListener("input", () => {
+  matK = parseFloat(matKSlider.value);
+  document.getElementById("matKVal").textContent = matK;
+  computeMatrix();
+});
+
+/* ============================================================
+   모드 전환
+   ============================================================ */
+document.getElementById("btnVec").addEventListener("click", () => {
+  document.getElementById("btnVec").classList.add("active");
+  document.getElementById("btnMat").classList.remove("active");
+  document.getElementById("modeVec").style.display = "";
+  document.getElementById("modeMat").style.display = "none";
+  renderVec();
+});
+document.getElementById("btnMat").addEventListener("click", () => {
+  document.getElementById("btnMat").classList.add("active");
+  document.getElementById("btnVec").classList.remove("active");
+  document.getElementById("modeMat").style.display = "";
+  document.getElementById("modeVec").style.display = "none";
+});
+
+/* init */
+syncInputs();
+renderVec();
+renderMatGrid("gridA", matA, true);
+renderMatGrid("gridB", matB, true);
+computeMatrix();
+</script>
+</body>
+</html>
