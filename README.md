@@ -26,6 +26,10 @@ AI_math/
 
 ## 현재 제공 중인 도구
 
+- **TF-IDF 계산기** (`unit2-data-representation/tfidf-calculator.html`): 문서별
+  단어를 입력하면 TF → DF/상대도수 → IDF → TF·IDF를 4단계로 계산해 보여주고,
+  각 문서의 최고 TF·IDF 단어를 핵심어로 짚어줍니다. 청바지 후기·날씨 기사
+  제목 예시는 학교 수업 자료의 실제 풀이와 정확히 일치하도록 맞춰 검증했습니다.
 - **손글씨 숫자 인식** (`unit2-data-representation/handwriting-recognition.html`):
   학생이 캔버스에 숫자를 그리면, 실제 MNIST 데이터셋에서 뽑아 20×20으로 정규화한
   예시 800장(숫자당 80장)과 유클리드 거리를 계산해 k-최근접 이웃(k=5)으로
