@@ -103,6 +103,22 @@
     font-size: 0.88rem;
     font-weight: 600;
   }
+
+  .link-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .link-card h4 { margin: 0 0 8px; font-size: 0.98rem; }
+  .link-card p { margin: 0 0 10px; font-size: 0.88rem; color: var(--color-text); }
+  .link-card a {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--color-primary-dark);
+    font-size: 0.88rem;
+  }
 </style>
 </head>
 <body>
@@ -193,6 +209,25 @@
       <li>사전에 없는 단어나 신조어, 반어법(비꼬는 말)은 두 방식 모두 전혀 인식하지 못합니다.</li>
       <li>실제 인공지능은 이런 한계를 극복하기 위해 문장 전체의 흐름을 한 번에 학습하는 <strong>더 발전된 모델(신경망 기반 자연어 처리, 예: BERT·GPT)</strong>을 사용합니다.</li>
     </ul>
+  </div>
+
+  <div class="panel">
+    <h2 class="method-title"><span class="num ctx">3</span>실제 신경망(BERT·GPT)으로 체험해보기</h2>
+    <p style="color:var(--color-text-muted); font-size:0.9rem; margin-top:0;">
+      앞의 두 방식은 규칙을 사람이 직접 정해준 것이지만, BERT·GPT 같은 모델은 엄청난 양의 글을 학습하면서 문맥을 스스로 익힙니다. 아래 링크에서 실제로 체험해보세요.
+    </p>
+
+    <div class="link-card">
+      <h4>🧩 Transformer Explainer <span style="font-weight:400; color:var(--color-text-muted);">— GPT-2가 다음 단어를 예측하는 과정 시각화</span></h4>
+      <p>문장을 입력하고 'Generate'를 누르면, 실제 GPT-2 모델이 그 문장의 문맥을 이용해 다음에 올 단어의 확률을 계산하는 과정을 눈으로 볼 수 있습니다. 로그인 없이 브라우저에서 바로 실행됩니다.</p>
+      <a href="https://poloclub.github.io/transformer-explainer/" target="_blank" rel="noopener">poloclub.github.io/transformer-explainer →</a>
+    </div>
+
+    <div class="link-card">
+      <h4>💬 ChatGPT <span style="font-weight:400; color:var(--color-text-muted);">— GPT와 직접 대화하며 확인하기</span></h4>
+      <p>우리가 위에서 썼던 "헷갈리는 예시"를 그대로 물어보세요: <em>"다음 댓글이 긍정적인지 부정적인지 판단하고 이유를 설명해줘: 오늘 하루 하나도 안 좋아"</em> 우리가 만든 두 방식과 GPT의 답을 비교해보면, 문맥을 진짜로 이해하는 모델과 규칙 기반 방식의 차이를 체감할 수 있습니다.</p>
+      <a href="https://chatgpt.com/" target="_blank" rel="noopener">chatgpt.com →</a>
+    </div>
   </div>
 </div>
 
