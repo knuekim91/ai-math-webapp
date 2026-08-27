@@ -26,6 +26,12 @@ AI_math/
 
 ## 현재 제공 중인 도구
 
+- **행렬로 이미지 변환하기** (`unit2-data-representation/matrix-image-transform.html`):
+  3개 모드로 구성됩니다. ① 상수 행렬을 더해 흑백 명암이나 컬러 채널(R/G/B)을
+  바꾸고 클릭한 지점의 3×3 덧셈을 숫자로 확인, ② 단순 평균과 가중 평균
+  (0.299R+0.587G+0.114B) 두 가지 흑백 변환 공식을 같은 이미지로 비교, ③ 동차좌표
+  3×3 행렬 곱셈으로 평행이동·대칭·회전을 비대칭 도형(F)에 적용해 원본과
+  겹쳐보고 기준점 좌표 계산까지 보여줍니다.
 - **댓글 감성 분석(단어 사전 기반)** (`unit2-data-representation/sentiment-analysis.html`):
   1단계는 [KNU 한국어 감성사전](https://github.com/park1200656/KnuSentiLex)(군산대학교,
   긍정 4,867개·부정 9,812개, `sentiment-dict.js`에 내장)과 실시간으로 대조해

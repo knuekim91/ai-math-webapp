@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>행렬로 이미지 변환하기 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .hidden { display: none !important; }
+  .mode-switch { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .mode-switch button {
+    background: var(--color-surface); color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+  .btn-group button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .side-by-side { grid-template-columns: 1fr; } }
+  .img-block h4 { margin: 0 0 8px; font-size: 0.9rem; text-align: center; }
+  canvas.imgcanvas {
+    width: 100%; aspect-ratio: 1/1; image-rendering: pixelated;
+    border-radius: 10px; border: 1px solid var(--color-border); cursor: crosshair;
+  }
+
+  .matrix-eq {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    margin: 16px 0; justify-content: center;
+  }
+  .mini-matrix {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    background: var(--color-bg); padding: 8px; border-radius: 8px;
+  }
+  .mini-matrix div {
+    width: 52px; height: 32px; display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-family: monospace; background: var(--color-surface); border-radius: 4px;
+  }
+  .mini-matrix.const div { background: #eef0ff; }
+  .mini-matrix.result div { background: #e9fbf7; font-weight: 700; }
+  .op-symbol { font-size: 1.6rem; font-weight: 700; color: var(--color-text-muted); }
+
+  .formula-box {
+    font-family: monospace; font-size: 0.9rem; background: var(--color-bg);
+    border-radius: 10px; padding: 12px 16px; margin: 10px 0; white-space: pre-wrap;
+  }
+
+  #transformCanvas {
+    width: 100%; aspect-ratio: 1/1; border-radius: 10px;
+    border: 1px solid var(--color-border);
+  }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; margin: 4px 0; }
+  .legend-row .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🧮 행렬로 이미지 변환하기</h1>
+    <p>3×3 행렬 하나로 이미지의 밝기·색을 바꾸고(덧셈), 모양을 옮기고 뒤집고 돌리는(곱셈) 것까지 할 수 있습니다.</p>
+  </div>
+
+  <div class="mode-switch">
+    <button id="btnMode1" class="active">① 덧셈: 밝기·색 변화</button>
+    <button id="btnMode2">② 흑백 변환의 원리</button>
+    <button id="btnMode3">③ 곱셈: 이동·대칭·회전</button>
+  </div>
+
+  <!-- ===================== 모드 1: 덧셈 ===================== -->
+  <div id="mode1">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>이미지 선택</label>
+          <div class="btn-group" id="sampleBtns1">
+            <button data-sample="smile">😊 웃는 얼굴</button>
+            <button data-sample="rainbow">🌈 무지개</button>
+            <button data-sample="check">🏁 체크무늬</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>내 사진 사용</label>
+          <input type="file" id="fileInput1" accept="image/*" />
+        </div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>색상 모드</label>
+          <div class="btn-group" id="colorModeBtns">
+            <button data-mode="gray" class="active">흑백(명암)</button>
+            <button data-mode="color">컬러</button>
+          </div>
+        </div>
+        <div class="control-group" id="channelGroup" style="display:none;">
+          <label>바꿀 채널</label>
+          <div class="btn-group" id="channelBtns">
+            <button data-ch="all" class="active">밝기 (R,G,B 모두)</button>
+            <button data-ch="r">R만</button>
+            <button data-ch="g">G만</button>
+            <button data-ch="b">B만</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>더할 값 k = <span class="value" id="kVal1">30</span></label>
+          <input type="range" id="kSlider1" min="-120" max="120" step="5" value="30" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="side-by-side">
+        <div class="img-block"><h4>원본 행렬</h4><canvas class="imgcanvas" id="origCanvas1"></canvas></div>
+        <div class="img-block"><h4>원본 + 상수행렬(k) = 결과</h4><canvas class="imgcanvas" id="resultCanvas1"></canvas></div>
+      </div>
+      <p style="text-align:center; color:var(--color-text-muted); font-size:0.85rem; margin-top:10px;">아무 칸이나 클릭하면 그 지점의 3×3 행렬 덧셈을 숫자로 보여줍니다.</p>
+    </div>
+
+    <div class="panel" id="patch1Panel" style="display:none;">
+      <h3 style="margin-top:0;">클릭한 지점의 3×3 행렬 덧셈</h3>
+      <div class="matrix-eq">
+        <div class="mini-matrix" id="patchOrig1"></div>
+        <span class="op-symbol">+</span>
+        <div class="mini-matrix const" id="patchConst1"></div>
+        <span class="op-symbol">=</span>
+        <div class="mini-matrix result" id="patchResult1"></div>
+      </div>
+      <p style="text-align:center; color:var(--color-text-muted); font-size:0.82rem;">(값은 0~255 범위를 벗어나면 그 안에 맞춰 잘립니다)</p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>모든 원소가 <strong>같은 값 k인 상수 행렬</strong>을 더하면, k가 양수면 <strong>전체적으로 밝아지고</strong> 음수면 <strong>어두워집니다</strong>.</li>
+        <li>컬러 모드에서 <strong>R 채널에만</strong> 더하면 사진이 <strong>더 붉고 따뜻하게</strong>, <strong>B 채널에만</strong> 더하면 <strong>더 푸르고 차갑게</strong> 보입니다 — 사진 필터 앱의 "온도" 조절이 바로 이 원리입니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== 모드 2: 흑백 변환 ===================== -->
+  <div id="mode2" class="hidden">
+    <div class="panel">
+      <h3 style="margin-top:0;">왜 컬러를 흑백으로 바꿀까?</h3>
+      <p>컬러 사진은 픽셀마다 <strong>R, G, B 숫자 3개</strong>를 저장하지만, 흑백은 <strong>숫자 1개</strong>면 충분합니다. 그만큼 저장 공간이 줄고 계산도 단순해져서, 이미지의 형태(윤곽·명암)만 필요한 인공지능 작업(예: 손글씨 숫자 인식)에서는 흑백으로 먼저 바꾸는 경우가 많습니다.</p>
+      <p>문제는 <strong>R, G, B 3개를 숫자 1개로 어떻게 합칠까</strong>입니다 — 아래에서 두 가지 방법을 비교해봅시다.</p>
+      <div class="controls">
+        <div class="control-group">
+          <label>이미지 선택</label>
+          <div class="btn-group" id="sampleBtns2">
+            <button data-sample="bars">🎨 원색 막대</button>
+            <button data-sample="smile">😊 웃는 얼굴</button>
+            <button data-sample="rainbow">🌈 무지개</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>내 사진 사용</label>
+          <input type="file" id="fileInput2" accept="image/*" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="side-by-side">
+        <div class="img-block"><h4>① 단순 평균 (R+G+B)/3</h4><canvas class="imgcanvas" id="grayCanvasSimple"></canvas></div>
+        <div class="img-block"><h4>② 가중 평균 (사람 눈 기준)</h4><canvas class="imgcanvas" id="grayCanvasWeighted"></canvas></div>
+      </div>
+      <p style="text-align:center; color:var(--color-text-muted); font-size:0.85rem; margin-top:10px;">"원색 막대" 예시에서 초록·파랑 막대를 비교해보면 차이가 가장 잘 보입니다. 칸을 클릭해 실제 계산을 확인해보세요.</p>
+    </div>
+
+    <div class="panel" id="patch2Panel" style="display:none;">
+      <h3 style="margin-top:0;">클릭한 픽셀의 흑백 변환 계산</h3>
+      <p style="font-family:monospace;">원본 RGB = (<span id="rgbR"></span>, <span id="rgbG"></span>, <span id="rgbB"></span>)</p>
+      <div class="formula-box" id="grayFormulaBox"></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li><strong>단순 평균</strong>은 R, G, B를 똑같이 1/3씩 반영합니다.</li>
+        <li><strong>가중 평균(0.299R + 0.587G + 0.114B)</strong>은 사람 눈이 <strong>초록색에 가장 민감하고 파란색에 가장 둔감</strong>하다는 특성을 반영한 공식입니다. 그래서 순수한 초록 막대는 밝게, 파란 막대는 어둡게 나옵니다.</li>
+        <li>대부분의 사진 편집 프로그램과 인공지능 라이브러리는 <strong>가중 평균 방식</strong>을 기본값으로 사용합니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== 모드 3: 곱셈 ===================== -->
+  <div id="mode3" class="hidden">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>변환 종류</label>
+          <div class="btn-group" id="transformTypeBtns">
+            <button data-type="translate" class="active">평행이동</button>
+            <button data-type="reflect">대칭</button>
+            <button data-type="rotate">회전</button>
+          </div>
+        </div>
+      </div>
+      <div class="controls" id="translateControls">
+        <div class="control-group">
+          <label>tx = <span class="value" id="txVal">3</span></label>
+          <input type="range" id="txSlider" min="-8" max="8" step="1" value="3" />
+        </div>
+        <div class="control-group">
+          <label>ty = <span class="value" id="tyVal">2</span></label>
+          <input type="range" id="tySlider" min="-8" max="8" step="1" value="2" />
+        </div>
+      </div>
+      <div class="controls hidden" id="reflectControls">
+        <div class="control-group">
+          <label>대칭 축</label>
+          <div class="btn-group" id="reflectAxisBtns">
+            <button data-axis="x" class="active">x축</button>
+            <button data-axis="y">y축</button>
+            <button data-axis="origin">원점</button>
+            <button data-axis="yx">직선 y=x</button>
+          </div>
+        </div>
+      </div>
+      <div class="controls hidden" id="rotateControls">
+        <div class="control-group">
+          <label>회전각 θ = <span class="value" id="thetaVal">90</span>°</label>
+          <input type="range" id="thetaSlider" min="-180" max="180" step="15" value="90" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="legend-row"><span class="dot" style="background:#2857a6;"></span>원본 도형 F</div>
+      <div class="legend-row"><span class="dot" style="background:#c9302c;"></span>변환된 도형</div>
+      <canvas id="transformCanvas"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">이 변환의 3×3 행렬</h3>
+      <div class="mini-matrix" id="transformMatrixDisplay" style="grid-template-columns:repeat(3,1fr); max-width:220px; margin:0 auto;"></div>
+      <p style="text-align:center; margin-top:16px; font-family:monospace;" id="pointCompute"></p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>점 하나의 좌표 (x, y)를 (x, y, 1)로 확장하면, <strong>이동·대칭·회전을 모두 3×3 행렬 곱셈 하나</strong>로 표현할 수 있습니다.</li>
+        <li>F 모양처럼 <strong>좌우·상하가 대칭이 아닌 도형</strong>을 써야 대칭·회전 결과를 정확히 구분할 수 있습니다 — 만약 원이나 정사각형을 썼다면 회전해도 모양이 똑같아 보였을 것입니다.</li>
+        <li>대칭 변환은 <strong>두 번 적용하면 원래대로 돌아옵니다</strong>(자기 자신이 역행렬). 회전과 평행이동은 반대 방향(−θ, −t)으로 한 번 더 적용해야 원래대로 돌아옵니다.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+/* ============================================================
+   공통: 샘플 이미지 생성
+   ============================================================ */
+const SOURCE_SIZE = 256;
+function makeSourceCanvas() {
+  const c = document.createElement("canvas");
+  c.width = SOURCE_SIZE; c.height = SOURCE_SIZE;
+  return c;
+}
+
+function drawSampleOnto(ctx, name) {
+  const s = SOURCE_SIZE;
+  ctx.clearRect(0, 0, s, s);
+  if (name === "smile") {
+    ctx.fillStyle = "#ffd54a";
+    ctx.beginPath(); ctx.arc(s/2, s/2, s*0.46, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#2b2b2b";
+    ctx.beginPath(); ctx.arc(s*0.35, s*0.4, s*0.06, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s*0.65, s*0.4, s*0.06, 0, Math.PI*2); ctx.fill();
+    ctx.lineWidth = s*0.045; ctx.strokeStyle = "#2b2b2b";
+    ctx.beginPath(); ctx.arc(s/2, s*0.52, s*0.28, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  } else if (name === "rainbow") {
+    const colors = ["#ff3b30","#ff9500","#ffcc00","#34c759","#0a84ff","#5856d6","#af52de"];
+    const bandH = s / colors.length;
+    colors.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(0, i*bandH, s, bandH+1); });
+  } else if (name === "check") {
+    const n = 8, cell = s/n;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      ctx.fillStyle = (r+c)%2===0 ? "#274690" : "#f2a900";
+      ctx.fillRect(c*cell, r*cell, cell+1, cell+1);
+    }
+  } else if (name === "bars") {
+    const colors = ["#ff0000","#00c800","#0040ff","#ffe600","#00e0e0","#ff00ff","#ffffff","#808080","#000000"];
+    const bandW = s / colors.length;
+    colors.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i*bandW, 0, bandW+1, s); });
+  }
+}
+
+function resampleToGrid(sourceCanvas, gridN) {
+  const tmp = document.createElement("canvas");
+  tmp.width = gridN; tmp.height = gridN;
+  const tctx = tmp.getContext("2d");
+  tctx.imageSmoothingEnabled = true;
+  tctx.drawImage(sourceCanvas, 0, 0, SOURCE_SIZE, SOURCE_SIZE, 0, 0, gridN, gridN);
+  const data = tctx.getImageData(0, 0, gridN, gridN).data;
+  const pixels = [];
+  for (let row = 0; row < gridN; row++) {
+    const line = [];
+    for (let col = 0; col < gridN; col++) {
+      const i = (row*gridN+col)*4;
+      line.push({ r: data[i], g: data[i+1], b: data[i+2] });
+    }
+    pixels.push(line);
+  }
+  return pixels;
+}
+
+function clamp255(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+function renderPixelGrid(canvas, pixels, gridN, colorFn) {
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 260);
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const cell = size / gridN;
+  for (let row = 0; row < gridN; row++) {
+    for (let col = 0; col < gridN; col++) {
+      ctx.fillStyle = colorFn(pixels[row][col], row, col);
+      ctx.fillRect(col*cell, row*cell, cell+0.5, cell+0.5);
+    }
+  }
+}
+
+/* ============================================================
+   모드 1: 덧셈으로 밝기·색 변화
+   ============================================================ */
+const GRID1 = 20;
+const sourceCanvas1 = makeSourceCanvas();
+let pixels1 = [];
+let colorMode1 = "gray";
+let channel1 = "all";
+let k1 = 30;
+
+function loadSample1(name) {
+  drawSampleOnto(sourceCanvas1.getContext("2d"), name);
+  pixels1 = resampleToGrid(sourceCanvas1, GRID1);
+  renderMode1();
+}
+
+function grayOf(p) { return Math.round(0.299*p.r + 0.587*p.g + 0.114*p.b); }
+
+function applyAdd1(p) {
+  if (colorMode1 === "gray") {
+    const g = clamp255(grayOf(p) + k1);
+    return { r: g, g: g, b: g };
+  }
+  let { r, g, b } = p;
+  if (channel1 === "all") { r += k1; g += k1; b += k1; }
+  else if (channel1 === "r") r += k1;
+  else if (channel1 === "g") g += k1;
+  else if (channel1 === "b") b += k1;
+  return { r: clamp255(r), g: clamp255(g), b: clamp255(b) };
+}
+
+function renderMode1() {
+  renderPixelGrid(document.getElementById("origCanvas1"), pixels1, GRID1, (p) => {
+    if (colorMode1 === "gray") { const g = grayOf(p); return `rgb(${g},${g},${g})`; }
+    return `rgb(${p.r},${p.g},${p.b})`;
+  });
+  renderPixelGrid(document.getElementById("resultCanvas1"), pixels1, GRID1, (p) => {
+    const r2 = applyAdd1(p);
+    return `rgb(${r2.r},${r2.g},${r2.b})`;
+  });
+}
+
+function showPatch1(row, col) {
+  const displayCh = colorMode1 === "gray" ? "gray" : (channel1 === "all" ? "r" : channel1);
+  const getVal = (p) => displayCh === "gray" ? grayOf(p) : p[displayCh];
+  const patchOrig = document.getElementById("patchOrig1");
+  const patchConst = document.getElementById("patchConst1");
+  const patchResult = document.getElementById("patchResult1");
+  patchOrig.innerHTML = ""; patchConst.innerHTML = ""; patchResult.innerHTML = "";
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const rr = row+dr, cc = col+dc;
+      const inBounds = rr>=0 && rr<GRID1 && cc>=0 && cc<GRID1;
+      const origVal = inBounds ? getVal(pixels1[rr][cc]) : null;
+      const oDiv = document.createElement("div"); oDiv.textContent = inBounds ? origVal : "-";
+      patchOrig.appendChild(oDiv);
+      const cDiv = document.createElement("div"); cDiv.textContent = (k1>=0?"+":"") + k1;
+      patchConst.appendChild(cDiv);
+      const rDiv = document.createElement("div"); rDiv.textContent = inBounds ? clamp255(origVal + k1) : "-";
+      patchResult.appendChild(rDiv);
+    }
+  }
+  document.getElementById("patch1Panel").style.display = "";
+}
+
+document.getElementById("origCanvas1").addEventListener("click", (e) => {
+  const rect = e.target.getBoundingClientRect();
+  const col = Math.floor((e.clientX-rect.left)/rect.width*GRID1);
+  const row = Math.floor((e.clientY-rect.top)/rect.height*GRID1);
+  if (row>=0 && row<GRID1 && col>=0 && col<GRID1) showPatch1(row, col);
+});
+document.getElementById("resultCanvas1").addEventListener("click", (e) => {
+  const rect = e.target.getBoundingClientRect();
+  const col = Math.floor((e.clientX-rect.left)/rect.width*GRID1);
+  const row = Math.floor((e.clientY-rect.top)/rect.height*GRID1);
+  if (row>=0 && row<GRID1 && col>=0 && col<GRID1) showPatch1(row, col);
+});
+
+document.getElementById("sampleBtns1").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-sample]");
+  if (!btn) return;
+  loadSample1(btn.dataset.sample);
+});
+document.getElementById("fileInput1").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = sourceCanvas1.getContext("2d");
+      ctx.clearRect(0,0,SOURCE_SIZE,SOURCE_SIZE);
+      const scale = Math.max(SOURCE_SIZE/img.width, SOURCE_SIZE/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (SOURCE_SIZE-w)/2, (SOURCE_SIZE-h)/2, w, h);
+      pixels1 = resampleToGrid(sourceCanvas1, GRID1);
+      renderMode1();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById("colorModeBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-mode]");
+  if (!btn) return;
+  document.querySelectorAll("#colorModeBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  colorMode1 = btn.dataset.mode;
+  document.getElementById("channelGroup").style.display = colorMode1 === "color" ? "" : "none";
+  renderMode1();
+});
+document.getElementById("channelBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-ch]");
+  if (!btn) return;
+  document.querySelectorAll("#channelBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  channel1 = btn.dataset.ch;
+  renderMode1();
+});
+document.getElementById("kSlider1").addEventListener("input", (e) => {
+  k1 = parseInt(e.target.value, 10);
+  document.getElementById("kVal1").textContent = k1;
+  renderMode1();
+});
+
+/* ============================================================
+   모드 2: 흑백 변환 원리
+   ============================================================ */
+const GRID2 = 20;
+const sourceCanvas2 = makeSourceCanvas();
+let pixels2 = [];
+
+function loadSample2(name) {
+  drawSampleOnto(sourceCanvas2.getContext("2d"), name);
+  pixels2 = resampleToGrid(sourceCanvas2, GRID2);
+  renderMode2();
+}
+
+function simpleGray(p) { return Math.round((p.r + p.g + p.b) / 3); }
+function weightedGray(p) { return Math.round(0.299*p.r + 0.587*p.g + 0.114*p.b); }
+
+function renderMode2() {
+  renderPixelGrid(document.getElementById("grayCanvasSimple"), pixels2, GRID2, (p) => {
+    const g = simpleGray(p); return `rgb(${g},${g},${g})`;
+  });
+  renderPixelGrid(document.getElementById("grayCanvasWeighted"), pixels2, GRID2, (p) => {
+    const g = weightedGray(p); return `rgb(${g},${g},${g})`;
+  });
+}
+
+function showPatch2(row, col) {
+  const p = pixels2[row][col];
+  document.getElementById("rgbR").textContent = p.r;
+  document.getElementById("rgbG").textContent = p.g;
+  document.getElementById("rgbB").textContent = p.b;
+  const sg = simpleGray(p), wg = weightedGray(p);
+  document.getElementById("grayFormulaBox").textContent =
+    `① 단순 평균 = (${p.r} + ${p.g} + ${p.b}) / 3 = ${sg}\n` +
+    `② 가중 평균 = 0.299×${p.r} + 0.587×${p.g} + 0.114×${p.b} = ${wg}`;
+  document.getElementById("patch2Panel").style.display = "";
+}
+
+["grayCanvasSimple", "grayCanvasWeighted"].forEach(id => {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const rect = e.target.getBoundingClientRect();
+    const col = Math.floor((e.clientX-rect.left)/rect.width*GRID2);
+    const row = Math.floor((e.clientY-rect.top)/rect.height*GRID2);
+    if (row>=0 && row<GRID2 && col>=0 && col<GRID2) showPatch2(row, col);
+  });
+});
+
+document.getElementById("sampleBtns2").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-sample]");
+  if (!btn) return;
+  loadSample2(btn.dataset.sample);
+});
+document.getElementById("fileInput2").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = sourceCanvas2.getContext("2d");
+      ctx.clearRect(0,0,SOURCE_SIZE,SOURCE_SIZE);
+      const scale = Math.max(SOURCE_SIZE/img.width, SOURCE_SIZE/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (SOURCE_SIZE-w)/2, (SOURCE_SIZE-h)/2, w, h);
+      pixels2 = resampleToGrid(sourceCanvas2, GRID2);
+      renderMode2();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ============================================================
+   모드 3: 곱셈으로 이동·대칭·회전
+   ============================================================ */
+const F_BITMAP = [
+  "111111",
+  "100000",
+  "100000",
+  "111110",
+  "100000",
+  "100000",
+  "100000",
+  "100000",
+];
+const F_ROWS = F_BITMAP.length, F_COLS = F_BITMAP[0].length;
+
+function isFilled(x, y) {
+  // x,y are centered coords; convert back to bitmap row/col
+  const col = Math.round(x + (F_COLS-1)/2);
+  const row = Math.round((F_ROWS-1)/2 - y);
+  if (row < 0 || row >= F_ROWS || col < 0 || col >= F_COLS) return false;
+  return F_BITMAP[row][col] === "1";
+}
+
+const REF_POINT = { x: -(F_COLS-1)/2, y: (F_ROWS-1)/2 }; // F의 왼쪽 위 꼭짓점
+
+let transformType = "translate";
+let tx = 3, ty = 2;
+let reflectAxis = "x";
+let theta = 90;
+
+function currentMatrix() {
+  if (transformType === "translate") {
+    return [[1,0,tx],[0,1,ty],[0,0,1]];
+  }
+  if (transformType === "reflect") {
+    if (reflectAxis === "x") return [[1,0,0],[0,-1,0],[0,0,1]];
+    if (reflectAxis === "y") return [[-1,0,0],[0,1,0],[0,0,1]];
+    if (reflectAxis === "origin") return [[-1,0,0],[0,-1,0],[0,0,1]];
+    if (reflectAxis === "yx") return [[0,1,0],[1,0,0],[0,0,1]];
+  }
+  if (transformType === "rotate") {
+    const rad = theta * Math.PI / 180;
+    const c = Math.cos(rad), s = Math.sin(rad);
+    return [[c,-s,0],[s,c,0],[0,0,1]];
+  }
+}
+
+function inverseMatrix() {
+  if (transformType === "translate") return [[1,0,-tx],[0,1,-ty],[0,0,1]];
+  if (transformType === "reflect") return currentMatrix(); // 대칭은 자기 자신이 역행렬
+  if (transformType === "rotate") {
+    const rad = -theta * Math.PI / 180;
+    const c = Math.cos(rad), s = Math.sin(rad);
+    return [[c,-s,0],[s,c,0],[0,0,1]];
+  }
+}
+
+function applyMatrix(M, x, y) {
+  return {
+    x: M[0][0]*x + M[0][1]*y + M[0][2],
+    y: M[1][0]*x + M[1][1]*y + M[1][2],
+  };
+}
+
+const RANGE3 = 9;
+function toCanvas3(x, y, size) {
+  const scale = size / (RANGE3*2);
+  return [size/2 + x*scale, size/2 - y*scale];
+}
+
+function renderMode3() {
+  const canvas = document.getElementById("transformCanvas");
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,size,size);
+
+  ctx.strokeStyle = "#e6e8f0"; ctx.lineWidth = 1;
+  for (let i = -RANGE3; i <= RANGE3; i++) {
+    const [gx] = toCanvas3(i, 0, size); ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,size); ctx.stroke();
+    const [, gy] = toCanvas3(0, i, size); ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(size,gy); ctx.stroke();
+  }
+  ctx.strokeStyle = "#a9adbd"; ctx.lineWidth = 1.5;
+  const [ox, oy] = toCanvas3(0,0,size);
+  ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(size,oy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,size); ctx.stroke();
+
+  const cell = size / (RANGE3*2);
+  const Minv = inverseMatrix();
+
+  // 변환된 도형 (역행렬로 각 대상 칸의 원본 위치를 찾아 채워 넣기)
+  ctx.fillStyle = "#c9302c";
+  for (let gy = -RANGE3; gy < RANGE3; gy++) {
+    for (let gx = -RANGE3; gx < RANGE3; gx++) {
+      const src = applyMatrix(Minv, gx+0.5, gy+0.5);
+      if (isFilled(Math.round(src.x), Math.round(src.y))) {
+        const [px, py] = toCanvas3(gx, gy+1, size);
+        ctx.fillRect(px, py, cell, cell);
+      }
+    }
+  }
+
+  // 원본 도형
+  ctx.fillStyle = "rgba(40, 87, 166, 0.75)";
+  for (let row = 0; row < F_ROWS; row++) {
+    for (let col = 0; col < F_COLS; col++) {
+      if (F_BITMAP[row][col] === "1") {
+        const x = col - (F_COLS-1)/2, y = (F_ROWS-1)/2 - row;
+        const [px, py] = toCanvas3(x-0.5, y+0.5, size);
+        ctx.fillRect(px, py, cell, cell);
+      }
+    }
+  }
+
+  // 행렬 표시
+  const M = currentMatrix();
+  const matDiv = document.getElementById("transformMatrixDisplay");
+  matDiv.innerHTML = "";
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const d = document.createElement("div");
+    d.textContent = Number.isInteger(M[r][c]) ? M[r][c] : M[r][c].toFixed(2);
+    matDiv.appendChild(d);
+  }
+
+  // 기준점 계산 예시
+  const result = applyMatrix(M, REF_POINT.x, REF_POINT.y);
+  document.getElementById("pointCompute").textContent =
+    `기준점 (${REF_POINT.x}, ${REF_POINT.y}) → (${result.x.toFixed(1)}, ${result.y.toFixed(1)})`;
+}
+
+document.getElementById("transformTypeBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-type]");
+  if (!btn) return;
+  document.querySelectorAll("#transformTypeBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  transformType = btn.dataset.type;
+  document.getElementById("translateControls").classList.toggle("hidden", transformType !== "translate");
+  document.getElementById("reflectControls").classList.toggle("hidden", transformType !== "reflect");
+  document.getElementById("rotateControls").classList.toggle("hidden", transformType !== "rotate");
+  renderMode3();
+});
+document.getElementById("txSlider").addEventListener("input", (e) => {
+  tx = parseInt(e.target.value, 10); document.getElementById("txVal").textContent = tx; renderMode3();
+});
+document.getElementById("tySlider").addEventListener("input", (e) => {
+  ty = parseInt(e.target.value, 10); document.getElementById("tyVal").textContent = ty; renderMode3();
+});
+document.getElementById("reflectAxisBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-axis]");
+  if (!btn) return;
+  document.querySelectorAll("#reflectAxisBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  reflectAxis = btn.dataset.axis;
+  renderMode3();
+});
+document.getElementById("thetaSlider").addEventListener("input", (e) => {
+  theta = parseInt(e.target.value, 10); document.getElementById("thetaVal").textContent = theta; renderMode3();
+});
+
+/* ============================================================
+   모드 전환
+   ============================================================ */
+function switchMode(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById("mode"+i).classList.toggle("hidden", i !== n);
+    document.getElementById("btnMode"+i).classList.toggle("active", i === n);
+  });
+  if (n === 3) renderMode3();
+}
+document.getElementById("btnMode1").addEventListener("click", () => switchMode(1));
+document.getElementById("btnMode2").addEventListener("click", () => switchMode(2));
+document.getElementById("btnMode3").addEventListener("click", () => switchMode(3));
+
+window.addEventListener("resize", () => {
+  renderMode1(); renderMode2();
+  if (!document.getElementById("mode3").classList.contains("hidden")) renderMode3();
+});
+
+/* init */
+loadSample1("smile");
+loadSample2("bars");
+renderMode3();
+</script>
+</body>
+</html>
