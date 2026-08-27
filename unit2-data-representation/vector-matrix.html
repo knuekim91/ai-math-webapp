@@ -13,7 +13,7 @@
     border: 1px solid var(--color-border);
   }
   .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
-  #modeMat { display: none; }
+  .hidden { display: none !important; }
 
   .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
   .btn-group button {
@@ -137,7 +137,7 @@
   </div>
 
   <!-- ===================== 행렬 모드 ===================== -->
-  <div id="modeMat">
+  <div id="modeMat" class="hidden">
     <div class="panel">
       <div class="controls">
         <div class="control-group">
@@ -513,15 +513,15 @@ matKSlider.addEventListener("input", () => {
 document.getElementById("btnVec").addEventListener("click", () => {
   document.getElementById("btnVec").classList.add("active");
   document.getElementById("btnMat").classList.remove("active");
-  document.getElementById("modeVec").style.display = "";
-  document.getElementById("modeMat").style.display = "none";
+  document.getElementById("modeVec").classList.remove("hidden");
+  document.getElementById("modeMat").classList.add("hidden");
   renderVec();
 });
 document.getElementById("btnMat").addEventListener("click", () => {
   document.getElementById("btnMat").classList.add("active");
   document.getElementById("btnVec").classList.remove("active");
-  document.getElementById("modeMat").style.display = "";
-  document.getElementById("modeVec").style.display = "none";
+  document.getElementById("modeMat").classList.remove("hidden");
+  document.getElementById("modeVec").classList.add("hidden");
 });
 
 /* init */

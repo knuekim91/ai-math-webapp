@@ -21,6 +21,7 @@
     color: white;
     border-color: var(--color-primary);
   }
+  .hidden { display: none !important; }
 
   /* ---- 학습 모드: 타임라인 ---- */
   .timeline {
@@ -114,7 +115,6 @@
   }
 
   /* ---- 복습 모드: 드래그 앤 드롭 ---- */
-  #reviewMode { display: none; }
   .review-toolbar {
     display: flex;
     justify-content: space-between;
@@ -275,7 +275,6 @@
     border-radius: 10px;
     padding: 10px 14px;
     margin-bottom: 14px;
-    display: none;
   }
   .quiz-final {
     text-align: center;
@@ -330,7 +329,7 @@
   </div>
 
   <!-- ===================== 복습 모드 (형성평가) ===================== -->
-  <div id="reviewMode">
+  <div id="reviewMode" class="hidden">
     <div class="panel">
       <h2 class="step-title"><span class="num">1</span> 시대별로 분류하기</h2>
       <p style="margin-top:0;">카드를 알맞은 시대 칸으로 <strong>드래그</strong>하거나, 카드를 <strong>탭한 뒤 원하는 칸을 탭</strong>해서 놓아보세요. 다 놓았으면 채점해보세요.</p>
@@ -572,14 +571,14 @@ const reviewMode = document.getElementById("reviewMode");
 btnLearn.addEventListener("click", () => {
   btnLearn.classList.add("active");
   btnReview.classList.remove("active");
-  learnMode.style.display = "";
-  reviewMode.style.display = "none";
+  learnMode.classList.remove("hidden");
+  reviewMode.classList.add("hidden");
 });
 btnReview.addEventListener("click", () => {
   btnReview.classList.add("active");
   btnLearn.classList.remove("active");
-  reviewMode.style.display = "";
-  learnMode.style.display = "none";
+  reviewMode.classList.remove("hidden");
+  learnMode.classList.add("hidden");
 });
 
 // ---------------- 복습 모드: 드래그 앤 드롭 ----------------
@@ -716,8 +715,8 @@ function renderQuizQuestion() {
     <div class="quiz-progress">문제 ${quizIndex + 1} / ${QUIZ.length} · 맞은 개수 ${quizScore}</div>
     <div class="quiz-question">${q.q}</div>
     <div class="quiz-choices" id="quizChoices"></div>
-    <div class="quiz-explain" id="quizExplain"></div>
-    <button id="quizNextBtn" style="display:none;">${quizIndex === QUIZ.length - 1 ? "결과 보기" : "다음 문제"}</button>
+    <div class="quiz-explain hidden" id="quizExplain"></div>
+    <button id="quizNextBtn" class="hidden">${quizIndex === QUIZ.length - 1 ? "결과 보기" : "다음 문제"}</button>
   `;
   const choicesEl = document.getElementById("quizChoices");
   q.choices.forEach((choiceText, idx) => {
@@ -740,10 +739,10 @@ function answerQuiz(chosenIdx) {
   if (chosenIdx === q.answer) quizScore++;
   const explainEl = document.getElementById("quizExplain");
   explainEl.textContent = "💡 " + q.explain;
-  explainEl.style.display = "";
+  explainEl.classList.remove("hidden");
   document.querySelector(".quiz-progress").textContent = `문제 ${quizIndex + 1} / ${QUIZ.length} · 맞은 개수 ${quizScore}`;
   const nextBtn = document.getElementById("quizNextBtn");
-  nextBtn.style.display = "";
+  nextBtn.classList.remove("hidden");
   nextBtn.addEventListener("click", () => {
     if (quizIndex < QUIZ.length - 1) {
       quizIndex++;

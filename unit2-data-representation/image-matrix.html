@@ -17,7 +17,7 @@
     color: white;
     border-color: var(--color-primary);
   }
-  #modeB { display: none; }
+  .hidden { display: none !important; }
 
   .layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
   @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
@@ -203,7 +203,7 @@
   </div>
 
   <!-- ===================== 모드 B ===================== -->
-  <div id="modeB">
+  <div id="modeB" class="hidden">
     <div class="panel">
       <div class="controls">
         <div class="control-group">
@@ -574,14 +574,14 @@ document.getElementById("presetHeart").addEventListener("click", () => {
 document.getElementById("btnA").addEventListener("click", () => {
   document.getElementById("btnA").classList.add("active");
   document.getElementById("btnB").classList.remove("active");
-  document.getElementById("modeA").style.display = "";
-  document.getElementById("modeB").style.display = "none";
+  document.getElementById("modeA").classList.remove("hidden");
+  document.getElementById("modeB").classList.add("hidden");
 });
 document.getElementById("btnB").addEventListener("click", () => {
   document.getElementById("btnB").classList.add("active");
   document.getElementById("btnA").classList.remove("active");
-  document.getElementById("modeB").style.display = "";
-  document.getElementById("modeA").style.display = "none";
+  document.getElementById("modeB").classList.remove("hidden");
+  document.getElementById("modeA").classList.add("hidden");
   renderPaintGrid();
 });
 
