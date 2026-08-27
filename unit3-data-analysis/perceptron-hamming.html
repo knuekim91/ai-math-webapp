@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>퍼셉트론과 해밍거리 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .hidden { display: none !important; }
+  .mode-switch { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .mode-switch button {
+    background: var(--color-surface); color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  .mode-switch button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+  .btn-group button.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  #perceptronCanvas { width: 100%; aspect-ratio: 1/1; border-radius: 10px; border: 1px solid var(--color-border); }
+
+  table.truth-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 10px; }
+  table.truth-table th, table.truth-table td { border: 1px solid var(--color-border); padding: 7px 10px; text-align: center; }
+  table.truth-table th { background: var(--color-bg); }
+  table.truth-table td.ok { background: #e3faf3; color: #05875a; font-weight: 700; }
+  table.truth-table td.no { background: #ffecec; color: #c9302c; font-weight: 700; }
+
+  .status-msg { font-weight: 700; padding: 10px 14px; border-radius: 8px; margin: 12px 0; }
+  .status-msg.ok { background: #e3faf3; color: #05875a; }
+  .status-msg.no { background: #fff4e3; color: #a15c00; }
+
+
+  /* 해밍거리 모드 */
+  .pattern-pair { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+  .pattern-block { text-align: center; }
+  .pattern-block h4 { margin: 0 0 8px; font-size: 0.9rem; }
+  .pattern-grid {
+    display: grid; gap: 3px; width: 160px; margin: 0 auto;
+  }
+  .pattern-cell {
+    aspect-ratio: 1; background: #fff; border: 1px solid var(--color-border);
+    border-radius: 2px; cursor: pointer;
+  }
+  .pattern-cell.on { background: var(--color-primary); }
+  .pattern-cell.diff { outline: 2px solid #ff5b77; outline-offset: -2px; }
+  .pattern-cell.static { cursor: default; }
+  .hamming-big { text-align: center; font-size: 2.2rem; font-weight: 800; color: var(--color-primary-dark); margin: 14px 0; }
+
+  .ref-row { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+  .ref-block { text-align: center; }
+  .ref-block .dist-bar { width: 130px; height: 14px; background: var(--color-bg); border-radius: 7px; overflow: hidden; margin-top: 8px; }
+  .ref-block .dist-fill { height: 100%; background: var(--color-primary); }
+  .ref-block.winner { outline: 3px solid var(--color-accent); border-radius: 10px; }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>🧮 퍼셉트론과 해밍거리</h1>
+    <p>임곗값을 직접 조절해 논리 게이트를 만드는 퍼셉트론과, 서로 다른 칸의 개수로 패턴을 비교하는 해밍거리를 실습해봅시다.</p>
+  </div>
+
+  <div class="mode-switch">
+    <button id="btnMode1" class="active">① 임곗값과 논리 게이트 퍼셉트론</button>
+    <button id="btnMode2">② 해밍거리로 패턴 분류하기</button>
+  </div>
+
+  <!-- ===================== 모드 1 ===================== -->
+  <div id="mode1">
+    <div class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label>논리 게이트</label>
+          <div class="btn-group" id="gateBtns">
+            <button data-gate="AND" class="active">AND</button>
+            <button data-gate="OR">OR</button>
+            <button data-gate="NAND">NAND</button>
+            <button data-gate="XOR">XOR</button>
+          </div>
+        </div>
+        <button class="secondary" id="presetBtn">정답 가중치 불러오기</button>
+        <button class="secondary" id="resetBtn">초기화</button>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label>w1 = <span class="value" id="w1Val">0.4</span></label>
+          <input type="range" id="w1Slider" min="-1" max="1.2" step="0.05" value="0.4" />
+        </div>
+        <div class="control-group">
+          <label>w2 = <span class="value" id="w2Val">0.4</span></label>
+          <input type="range" id="w2Slider" min="-1" max="1.2" step="0.05" value="0.4" />
+        </div>
+        <div class="control-group">
+          <label>임곗값 θ = <span class="value" id="thetaVal">0.5</span></label>
+          <input type="range" id="thetaSlider" min="-1.2" max="1.2" step="0.05" value="0.5" />
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <canvas id="perceptronCanvas"></canvas>
+        <p style="font-family:monospace; text-align:center; color:var(--color-text-muted); font-size:0.85rem;">
+          출력 = 1, 만약 (w1·x1 + w2·x2) ≥ θ, 아니면 0
+        </p>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0;">진리표</h3>
+        <table class="truth-table" id="truthTable"></table>
+        <div class="status-msg" id="statusMsg"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="xorHint" style="display:none;">
+      <h3 style="margin-top:0;">XOR, 왜 안 될까?</h3>
+      <p>XOR의 참(1)인 두 점 (0,1),(1,0)과 거짓(0)인 두 점 (0,0),(1,1)은 <strong>직선 하나로 절대 나눌 수 없습니다</strong> — 아무리 w1, w2, θ를 바꿔도 4개를 동시에 맞힐 수 없습니다. 아래에서 여러 퍼셉트론을 <strong>층으로 쌓아서(다층 퍼셉트론)</strong> 해결하는 방법을 확인해보세요.</p>
+      <button id="showMlpBtn">다층 퍼셉트론으로 XOR 풀기</button>
+      <div class="mlp-panel hidden" id="mlpPanel">
+        <p style="margin-top:16px;">아이디어: <strong>XOR = AND( OR(x1,x2), NAND(x1,x2) )</strong> — OR과 NAND라는 두 퍼셉트론의 출력을 다시 AND 퍼셉트론에 입력합니다.</p>
+        <table class="truth-table" id="mlpTable"></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li><strong>임곗값(threshold) θ</strong>는 "이 값을 넘으면 1, 안 넘으면 0"을 가르는 기준점입니다. 가중치가 정해져도 θ를 어디에 두느냐에 따라 결과가 달라집니다.</li>
+        <li>AND, OR처럼 <strong>직선 하나로 나눌 수 있는(선형 분리 가능한)</strong> 문제는 퍼셉트론 하나로 풀리지만, XOR처럼 그렇지 않은 문제는 <strong>여러 층을 쌓아야</strong> 풀립니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===================== 모드 2 ===================== -->
+  <div id="mode2" class="hidden">
+    <div class="panel">
+      <h2 style="margin-top:0; font-size:1.1rem;">두 패턴 비교하기</h2>
+      <p style="color:var(--color-text-muted); font-size:0.9rem;">칸을 클릭해 두 패턴을 그려보세요. <strong>해밍거리</strong>는 두 패턴에서 값이 <strong>서로 다른 칸의 개수</strong>입니다.</p>
+      <div class="controls">
+        <div class="control-group">
+          <label>패턴 P 불러오기</label>
+          <div class="btn-group" id="presetP"><button data-p="P" data-shape="0">0</button><button data-p="P" data-shape="1">1</button><button data-p="P" data-shape="7">7</button><button data-p="P" data-shape="clear">지우기</button></div>
+        </div>
+        <div class="control-group">
+          <label>패턴 Q 불러오기</label>
+          <div class="btn-group" id="presetQ"><button data-p="Q" data-shape="0">0</button><button data-p="Q" data-shape="1">1</button><button data-p="Q" data-shape="7">7</button><button data-p="Q" data-shape="clear">지우기</button></div>
+        </div>
+      </div>
+      <div class="pattern-pair">
+        <div class="pattern-block"><h4>패턴 P</h4><div class="pattern-grid" id="gridP"></div></div>
+        <div class="pattern-block"><h4>패턴 Q</h4><div class="pattern-grid" id="gridQ"></div></div>
+        <div class="pattern-block"><h4>다른 칸</h4><div class="pattern-grid" id="gridDiff"></div></div>
+      </div>
+      <div class="hamming-big">해밍거리 = <span id="hammingVal">0</span></div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0; font-size:1.1rem;">해밍거리로 분류하기</h2>
+      <p style="color:var(--color-text-muted); font-size:0.9rem;">테스트 패턴을 그리면, 3개의 기준 패턴(0/1/7) 중 <strong>해밍거리가 가장 작은(가장 비슷한)</strong> 것으로 분류합니다.</p>
+      <div class="controls">
+        <div class="control-group">
+          <label>테스트 패턴 불러오기</label>
+          <div class="btn-group" id="presetT">
+            <button data-shape="0">0</button><button data-shape="1">1</button><button data-shape="7">7</button>
+            <button data-shape="clear">지우기</button>
+            <button class="secondary" id="noiseBtn">노이즈 2칸 섞기</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:center; margin-bottom:20px;">
+        <div class="pattern-block"><h4>테스트 패턴</h4><div class="pattern-grid" id="gridTest"></div></div>
+      </div>
+      <div class="ref-row" id="refRow"></div>
+      <div class="status-msg ok" id="classifyResult" style="text-align:center;"></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">관찰 포인트</h3>
+      <ul>
+        <li>해밍거리는 <strong>칸이 몇 개 다른지만 세는</strong> 아주 단순한 유사도 계산입니다 — 그래서 계산이 빠르고 이해하기 쉽습니다.</li>
+        <li>노이즈(잡음)를 몇 칸 섞어도 <strong>원래 모양과 가장 가까운 기준 패턴</strong>으로 잘 분류되는 것을 확인해보세요 — 실제 손글씨 인식도 이런 원리를 응용합니다.</li>
+        <li>손글씨 숫자 인식(유클리드 거리), 텍스트 유사도(코사인 유사도)에 이어 <strong>세 번째 거리 개념</strong>입니다. 목적에 따라 다른 거리 개념을 사용합니다.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+/* ============================================================
+   모드 1: 퍼셉트론
+   ============================================================ */
+const INPUTS = [[0,0],[0,1],[1,0],[1,1]];
+const GATES = { AND: [0,0,0,1], OR: [0,1,1,1], NAND: [1,1,1,0], XOR: [0,1,1,0] };
+const PRESET_WEIGHTS = {
+  AND: { w1: 0.6, w2: 0.6, theta: 0.7 },
+  OR: { w1: 0.6, w2: 0.6, theta: 0.5 },
+  NAND: { w1: -0.6, w2: -0.6, theta: -0.7 },
+  XOR: null,
+};
+
+let gate = "AND";
+let w1 = 0.4, w2 = 0.4, theta = 0.5;
+
+function predict(x1, x2) { return (w1*x1 + w2*x2) >= theta ? 1 : 0; }
+
+function renderMode1() {
+  const truth = GATES[gate];
+  const table = document.getElementById("truthTable");
+  let html = "<tr><th>x1</th><th>x2</th><th>정답</th><th>w1x1+w2x2</th><th>예측</th></tr>";
+  let allCorrect = true;
+  INPUTS.forEach(([x1,x2], i) => {
+    const y = w1*x1 + w2*x2;
+    const pred = predict(x1,x2);
+    const correct = pred === truth[i];
+    if (!correct) allCorrect = false;
+    html += `<tr><td>${x1}</td><td>${x2}</td><td>${truth[i]}</td><td>${y.toFixed(2)}</td><td class="${correct?'ok':'no'}">${pred}</td></tr>`;
+  });
+  table.innerHTML = html;
+
+  const statusMsg = document.getElementById("statusMsg");
+  if (allCorrect) {
+    statusMsg.className = "status-msg ok";
+    statusMsg.textContent = "🎉 완성! 4가지 입력을 모두 올바르게 분류했습니다.";
+  } else {
+    statusMsg.className = "status-msg no";
+    statusMsg.textContent = "아직 모든 입력을 맞히지 못했습니다. 슬라이더를 조절해보세요.";
+  }
+
+  document.getElementById("xorHint").style.display = gate === "XOR" ? "" : "none";
+
+  const canvas = document.getElementById("perceptronCanvas");
+  const rect = canvas.getBoundingClientRect();
+  const size = Math.max(rect.width, 300);
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const RANGE = [-0.5, 1.5];
+  const toCanvas = (x,y) => {
+    const scale = size / (RANGE[1]-RANGE[0]);
+    return [(x-RANGE[0])*scale, size - (y-RANGE[0])*scale];
+  };
+
+  const cell = 6;
+  for (let py = 0; py < size; py += cell) {
+    for (let px = 0; px < size; px += cell) {
+      const scale = size / (RANGE[1]-RANGE[0]);
+      const x = px/scale + RANGE[0];
+      const y = (size-py)/scale + RANGE[0];
+      const p = predict(x,y);
+      ctx.fillStyle = p ? "rgba(201,48,44,0.12)" : "rgba(40,87,166,0.12)";
+      ctx.fillRect(px,py,cell,cell);
+    }
+  }
+  ctx.strokeStyle = "#a9adbd"; ctx.lineWidth = 1;
+  const [ox,oy] = toCanvas(0,0);
+  ctx.beginPath(); ctx.moveTo(0,oy); ctx.lineTo(size,oy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,0); ctx.lineTo(ox,size); ctx.stroke();
+
+  if (Math.abs(w2) > 1e-6) {
+    ctx.strokeStyle = "#1c1f2b"; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    RANGE.forEach((x,i) => {
+      const y = (theta - w1*x) / w2;
+      const [cx,cy] = toCanvas(x,y);
+      if (i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
+    });
+    ctx.stroke();
+  }
+
+  INPUTS.forEach(([x1,x2], i) => {
+    const [cx,cy] = toCanvas(x1,x2);
+    ctx.beginPath();
+    ctx.fillStyle = truth[i] ? "#c9302c" : "#2857a6";
+    ctx.arc(cx,cy,9,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+  });
+}
+
+document.getElementById("gateBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-gate]");
+  if (!btn) return;
+  document.querySelectorAll("#gateBtns button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  gate = btn.dataset.gate;
+  document.getElementById("mlpPanel").classList.add("hidden");
+  renderMode1();
+});
+["w1","w2","theta"].forEach(name => {
+  document.getElementById(name+"Slider").addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    if (name==="w1") w1=v; if (name==="w2") w2=v; if (name==="theta") theta=v;
+    document.getElementById(name+"Val").textContent = v.toFixed(2);
+    renderMode1();
+  });
+});
+document.getElementById("presetBtn").addEventListener("click", () => {
+  const p = PRESET_WEIGHTS[gate];
+  if (!p) { alert("XOR은 단층 퍼셉트론으로는 정답이 없습니다! 아래 다층 퍼셉트론을 확인해보세요."); return; }
+  w1 = p.w1; w2 = p.w2; theta = p.theta;
+  document.getElementById("w1Slider").value = w1; document.getElementById("w1Val").textContent = w1.toFixed(2);
+  document.getElementById("w2Slider").value = w2; document.getElementById("w2Val").textContent = w2.toFixed(2);
+  document.getElementById("thetaSlider").value = theta; document.getElementById("thetaVal").textContent = theta.toFixed(2);
+  renderMode1();
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  w1 = 0.4; w2 = 0.4; theta = 0.5;
+  document.getElementById("w1Slider").value = w1; document.getElementById("w1Val").textContent = w1.toFixed(2);
+  document.getElementById("w2Slider").value = w2; document.getElementById("w2Val").textContent = w2.toFixed(2);
+  document.getElementById("thetaSlider").value = theta; document.getElementById("thetaVal").textContent = theta.toFixed(2);
+  renderMode1();
+});
+
+document.getElementById("showMlpBtn").addEventListener("click", () => {
+  const mlpPanel = document.getElementById("mlpPanel");
+  mlpPanel.classList.toggle("hidden");
+  const orW = PRESET_WEIGHTS.OR, nandW = PRESET_WEIGHTS.NAND, andW = PRESET_WEIGHTS.AND;
+  const or = (x1,x2) => (orW.w1*x1+orW.w2*x2) >= orW.theta ? 1 : 0;
+  const nand = (x1,x2) => (nandW.w1*x1+nandW.w2*x2) >= nandW.theta ? 1 : 0;
+  const andFn = (x1,x2) => (andW.w1*x1+andW.w2*x2) >= andW.theta ? 1 : 0;
+  let html = "<tr><th>x1</th><th>x2</th><th>h1=OR</th><th>h2=NAND</th><th>출력=AND(h1,h2)</th><th>XOR 정답</th></tr>";
+  INPUTS.forEach(([x1,x2], i) => {
+    const h1 = or(x1,x2), h2 = nand(x1,x2), out = andFn(h1,h2);
+    const correct = out === GATES.XOR[i];
+    html += `<tr><td>${x1}</td><td>${x2}</td><td>${h1}</td><td>${h2}</td><td class="${correct?'ok':'no'}">${out}</td><td>${GATES.XOR[i]}</td></tr>`;
+  });
+  document.getElementById("mlpTable").innerHTML = html;
+});
+
+window.addEventListener("resize", () => { if (!document.getElementById("mode1").classList.contains("hidden")) renderMode1(); });
+
+/* ============================================================
+   모드 2: 해밍거리
+   ============================================================ */
+const HN = 5;
+const SHAPES = {
+  "0": ["01110","10001","10001","10001","01110"],
+  "1": ["00100","01100","00100","00100","01110"],
+  "7": ["11111","00010","00100","01000","01000"],
+};
+function shapeToGrid(key) {
+  if (key === "clear" || !SHAPES[key]) return Array.from({length:HN}, () => Array(HN).fill(0));
+  return SHAPES[key].map(row => row.split("").map(c => c === "1" ? 1 : 0));
+}
+
+let gridP = shapeToGrid("0");
+let gridQ = shapeToGrid("1");
+let gridTest = shapeToGrid("0");
+
+function buildPatternGrid(container, grid, editable, onToggle) {
+  container.innerHTML = "";
+  container.style.gridTemplateColumns = `repeat(${HN}, 1fr)`;
+  for (let r = 0; r < HN; r++) {
+    for (let c = 0; c < HN; c++) {
+      const cell = document.createElement("div");
+      cell.className = "pattern-cell" + (grid[r][c] ? " on" : "") + (editable ? "" : " static");
+      if (editable) cell.addEventListener("click", () => { onToggle(r,c); });
+      container.appendChild(cell);
+    }
+  }
+}
+
+function hammingDistance(a, b) {
+  let d = 0;
+  for (let r = 0; r < HN; r++) for (let c = 0; c < HN; c++) if (a[r][c] !== b[r][c]) d++;
+  return d;
+}
+
+function renderCompare() {
+  buildPatternGrid(document.getElementById("gridP"), gridP, true, (r,c) => { gridP[r][c] = gridP[r][c]?0:1; renderCompare(); });
+  buildPatternGrid(document.getElementById("gridQ"), gridQ, true, (r,c) => { gridQ[r][c] = gridQ[r][c]?0:1; renderCompare(); });
+  const diffContainer = document.getElementById("gridDiff");
+  diffContainer.innerHTML = "";
+  diffContainer.style.gridTemplateColumns = `repeat(${HN}, 1fr)`;
+  let dist = 0;
+  for (let r = 0; r < HN; r++) {
+    for (let c = 0; c < HN; c++) {
+      const cell = document.createElement("div");
+      const differ = gridP[r][c] !== gridQ[r][c];
+      if (differ) dist++;
+      cell.className = "pattern-cell static" + (differ ? " diff" : "") + ((gridP[r][c]||gridQ[r][c]) && !differ ? " on" : "");
+      diffContainer.appendChild(cell);
+    }
+  }
+  document.getElementById("hammingVal").textContent = dist;
+}
+
+document.getElementById("presetP").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-shape]"); if (!btn) return;
+  gridP = shapeToGrid(btn.dataset.shape); renderCompare();
+});
+document.getElementById("presetQ").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-shape]"); if (!btn) return;
+  gridQ = shapeToGrid(btn.dataset.shape); renderCompare();
+});
+
+function renderClassify() {
+  buildPatternGrid(document.getElementById("gridTest"), gridTest, true, (r,c) => { gridTest[r][c] = gridTest[r][c]?0:1; renderClassify(); });
+  const refRow = document.getElementById("refRow");
+  refRow.innerHTML = "";
+  const dists = {};
+  Object.keys(SHAPES).forEach(key => { dists[key] = hammingDistance(gridTest, shapeToGrid(key)); });
+  const minKey = Object.keys(dists).reduce((a,b) => dists[a] <= dists[b] ? a : b);
+  const maxDist = HN*HN;
+  Object.keys(SHAPES).forEach(key => {
+    const block = document.createElement("div");
+    block.className = "ref-block" + (key === minKey ? " winner" : "");
+    const gridDiv = document.createElement("div");
+    gridDiv.className = "pattern-grid";
+    gridDiv.style.width = "90px";
+    block.innerHTML = `<h4>기준 '${key}'</h4>`;
+    block.appendChild(gridDiv);
+    buildPatternGrid(gridDiv, shapeToGrid(key), false, null);
+    const barWrap = document.createElement("div");
+    barWrap.className = "dist-bar";
+    barWrap.innerHTML = `<div class="dist-fill" style="width:${(1-dists[key]/maxDist)*100}%"></div>`;
+    block.appendChild(barWrap);
+    const label = document.createElement("p");
+    label.style.fontSize = "0.8rem";
+    label.style.margin = "4px 0 0";
+    label.textContent = `거리 = ${dists[key]}`;
+    block.appendChild(label);
+    refRow.appendChild(block);
+  });
+  document.getElementById("classifyResult").textContent = `📌 분류 결과: 이 패턴은 '${minKey}'에 가장 가깝습니다 (해밍거리 ${dists[minKey]})`;
+}
+
+document.getElementById("presetT").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-shape]"); if (!btn) return;
+  gridTest = shapeToGrid(btn.dataset.shape); renderClassify();
+});
+document.getElementById("noiseBtn").addEventListener("click", () => {
+  for (let i = 0; i < 2; i++) {
+    const r = Math.floor(Math.random()*HN), c = Math.floor(Math.random()*HN);
+    gridTest[r][c] = gridTest[r][c] ? 0 : 1;
+  }
+  renderClassify();
+});
+
+/* ============================================================
+   모드 전환
+   ============================================================ */
+document.getElementById("btnMode1").addEventListener("click", () => {
+  document.getElementById("btnMode1").classList.add("active");
+  document.getElementById("btnMode2").classList.remove("active");
+  document.getElementById("mode1").classList.remove("hidden");
+  document.getElementById("mode2").classList.add("hidden");
+  renderMode1();
+});
+document.getElementById("btnMode2").addEventListener("click", () => {
+  document.getElementById("btnMode2").classList.add("active");
+  document.getElementById("btnMode1").classList.remove("active");
+  document.getElementById("mode2").classList.remove("hidden");
+  document.getElementById("mode1").classList.add("hidden");
+  renderCompare();
+  renderClassify();
+});
+
+/* init */
+renderMode1();
+renderCompare();
+renderClassify();
+</script>
+</body>
+</html>
