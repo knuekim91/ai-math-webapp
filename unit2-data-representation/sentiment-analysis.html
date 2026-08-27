@@ -78,7 +78,7 @@
 <div class="page-wrap">
   <div class="tool-header">
     <h1>💬 댓글 감성 분석</h1>
-    <p>댓글을 입력하면 미리 준비된 긍정·부정 단어 사전과 비교해서, 실시간으로 좋은 댓글인지 나쁜 댓글인지 판단하고 그 이유를 보여줍니다.</p>
+    <p>댓글을 입력하면 미리 준비된 긍정·부정 단어 사전(총 14,000여 개, KNU 한국어 감성사전 기반)과 비교해서, 실시간으로 좋은 댓글인지 나쁜 댓글인지 판단하고 그 이유를 보여줍니다.</p>
   </div>
 
   <div class="panel">
@@ -109,11 +109,19 @@
     <div class="word-chips" id="negChips"></div>
 
     <details class="dict-toggle">
-      <summary>미리 준비된 감성 단어 사전 전체 보기</summary>
-      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:10px 0 4px;">긍정 단어 (<span id="posCount"></span>개)</p>
+      <summary>미리 준비된 감성 단어 사전 미리보기</summary>
+      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:10px 0 4px;">
+        긍정 단어 <strong id="posCount"></strong>개 중 200개 미리보기
+      </p>
       <div class="word-chips" id="allPosChips"></div>
-      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:14px 0 4px;">부정 단어 (<span id="negCount"></span>개)</p>
+      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:14px 0 4px;">
+        부정 단어 <strong id="negCount"></strong>개 중 200개 미리보기
+      </p>
       <div class="word-chips" id="allNegChips"></div>
+      <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">
+        출처: <a href="https://github.com/park1200656/KnuSentiLex" target="_blank" rel="noopener">KNU 한국어 감성사전</a>
+        (군산대학교 Data Intelligence Lab, 2018) + 수업 예시 단어
+      </p>
     </details>
   </div>
 
@@ -130,25 +138,24 @@
 
 <div id="site-footer"></div>
 <script src="../assets/common.js"></script>
+<script src="sentiment-dict.js"></script>
 <script>
 AIMath.header({ home: "../index.html" });
 AIMath.footer();
 
-const POS_WORDS = [
-  "행복", "응원", "소중", "최고", "좋아", "좋다", "좋은", "웃음", "웃다", "사랑",
-  "아름답다", "예쁘다", "멋지다", "훌륭하다", "완벽하다", "감사", "고맙다", "기쁘다", "즐겁다", "다행",
-  "대단하다", "착하다", "친절하다", "편안하다", "신난다", "설레다", "뿌듯하다", "만족스럽다", "반갑다", "축하",
-  "힘내", "든든하다", "귀엽다", "재미있다", "놀랍다", "자랑스럽다", "감동", "활기차다", "상쾌하다", "유쾌하다",
-  "화이팅", "잘하다", "최선", "응원하다", "다정하다",
-];
-
-const NEG_WORDS = [
-  "싫다", "싫어", "짜증", "화나다", "최악", "별로", "실망", "안좋다", "밉다", "지겹다",
-  "지루하다", "역겹다", "끔찍하다", "혐오", "저주", "죄인", "울다", "슬프다", "우울하다", "힘들다",
-  "괴롭다", "불쾌하다", "답답하다", "서운하다", "불안하다", "초조하다", "무섭다", "두렵다", "창피하다", "형편없다",
-  "못생기다", "어리석다", "멍청하다", "바보", "한심하다", "극악무도", "꺼지다", "나쁘다", "실패", "후회",
-  "미워하다", "원망하다", "비참하다", "화나", "짜증나",
-];
+// 첫 글자 기준 색인: 사전이 15,000개에 가까워도 실시간 분석이 빠르도록
+const WORD_INDEX = new Map();
+function indexWords(words, type) {
+  words.forEach(w => {
+    if (!w) return;
+    const c = w[0];
+    if (!WORD_INDEX.has(c)) WORD_INDEX.set(c, []);
+    WORD_INDEX.get(c).push({ w, type });
+  });
+}
+indexWords(POS_WORDS, "pos");
+indexWords(NEG_WORDS, "neg");
+WORD_INDEX.forEach(list => list.sort((a, b) => b.w.length - a.w.length));
 
 const PRESETS = {
   good: "네가 어떤 삶을 살든 나는 너를 응원할 것이다. 우리 모두는 소중한 존재예요. 너를 만난 순간부터 하루하루가 행복이야. 알아요 알아, 내가 최고라는거. 나는 네가 너라서 좋아. 마음에 꽂히는 좋은 글귀가 있으면 함께 나누면 좋겠어요.",
@@ -163,19 +170,17 @@ function escapeHtml(s) {
 }
 
 function analyze(text) {
-  const dict = [
-    ...POS_WORDS.map(w => ({ w, type: "pos" })),
-    ...NEG_WORDS.map(w => ({ w, type: "neg" })),
-  ].sort((a, b) => b.w.length - a.w.length);
-
   let i = 0;
   let html = "";
   const matchedPos = [];
   const matchedNeg = [];
   while (i < text.length) {
     let hit = null;
-    for (const entry of dict) {
-      if (text.startsWith(entry.w, i)) { hit = entry; break; }
+    const candidates = WORD_INDEX.get(text[i]);
+    if (candidates) {
+      for (const entry of candidates) {
+        if (text.startsWith(entry.w, i)) { hit = entry; break; }
+      }
     }
     if (hit) {
       html += `<span class="hl-${hit.type}">${escapeHtml(text.slice(i, i + hit.w.length))}</span>`;
@@ -248,8 +253,9 @@ document.getElementById("presetBtns").addEventListener("click", (e) => {
   render();
 });
 
-document.getElementById("allPosChips").innerHTML = POS_WORDS.map(w => `<span class="word-chip pos">${w}</span>`).join("");
-document.getElementById("allNegChips").innerHTML = NEG_WORDS.map(w => `<span class="word-chip neg">${w}</span>`).join("");
+const PREVIEW_LIMIT = 200;
+document.getElementById("allPosChips").innerHTML = POS_WORDS.slice(0, PREVIEW_LIMIT).map(w => `<span class="word-chip pos">${w}</span>`).join("");
+document.getElementById("allNegChips").innerHTML = NEG_WORDS.slice(0, PREVIEW_LIMIT).map(w => `<span class="word-chip neg">${w}</span>`).join("");
 document.getElementById("posCount").textContent = POS_WORDS.length;
 document.getElementById("negCount").textContent = NEG_WORDS.length;
 
