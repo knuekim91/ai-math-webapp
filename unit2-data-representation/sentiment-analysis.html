@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>댓글 감성 분석 | 인공지능 수학 학습 도구</title>
+<title>댓글 감성 분석(단어 사전 기반) | 인공지능 수학 학습 도구</title>
 <link rel="stylesheet" href="../assets/common.css" />
 <style>
   textarea#commentInput {
@@ -70,6 +70,39 @@
     background: var(--color-surface); color: var(--color-text);
     border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
   }
+
+  .method-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 6px;
+    font-size: 1.1rem;
+  }
+  .method-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .method-title .num.dict { background: var(--color-primary); }
+  .method-title .num.ctx { background: #8a5cff; }
+  .panel.context-panel { border-left: 4px solid #8a5cff; }
+
+  .hl-flipped { outline: 2px dashed #8a5cff; outline-offset: 1px; }
+  .compare-note {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #f1ecff;
+    color: #5b3ec9;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -77,7 +110,7 @@
 
 <div class="page-wrap">
   <div class="tool-header">
-    <h1>💬 댓글 감성 분석</h1>
+    <h1>💬 댓글 감성 분석(단어 사전 기반)</h1>
     <p>댓글을 입력하면 미리 준비된 긍정·부정 단어 사전(총 14,000여 개, KNU 한국어 감성사전 기반)과 비교해서, 실시간으로 좋은 댓글인지 나쁜 댓글인지 판단하고 그 이유를 보여줍니다.</p>
   </div>
 
@@ -94,6 +127,7 @@
     </div>
     <textarea id="commentInput" placeholder="여기에 댓글을 입력해보세요... (예: 오늘 너무 행복하고 즐거운 하루였어!)"></textarea>
 
+    <h2 class="method-title" style="margin-top:20px;"><span class="num dict">1</span>단어 사전 기반 분석</h2>
     <div class="verdict-banner neutral" id="verdictBanner">
       <span class="emoji">🤔</span>
       <span id="verdictText">댓글을 입력하면 실시간으로 분석합니다.</span>
@@ -123,15 +157,41 @@
         (군산대학교 Data Intelligence Lab, 2018) + 수업 예시 단어
       </p>
     </details>
+
+    <p style="font-size:0.85rem; color:var(--color-text-muted); margin:18px 0 0; padding-top:16px; border-top:1px dashed var(--color-border);">
+      ⚠️ 이 방식은 "하나도 <strong>안</strong> 좋아"처럼 부정어가 섞이면 '좋아'라는 글자만 보고 긍정으로 잘못 판단합니다 — 아래 2단계에서 이 문제를 간단히 개선해봅니다.
+    </p>
+  </div>
+
+  <div class="panel context-panel">
+    <h2 class="method-title"><span class="num ctx">2</span>문맥을 고려한 감성 분석 (간단 버전)</h2>
+    <p style="color:var(--color-text-muted); font-size:0.9rem; margin-top:0;">
+      같은 문장을 다시 보되, <strong>'안', '못', '~지 않다'</strong> 같은 부정어가 감성 단어의 바로 앞이나 뒤에 있으면 그 단어의 감성을 반대로 뒤집습니다. 진짜 문맥 이해는 아니지만, 단어 하나만 보는 것보다 한 걸음 더 나아간 방식입니다.
+    </p>
+
+    <div class="verdict-banner neutral" id="verdictBanner2">
+      <span class="emoji">🤔</span>
+      <span id="verdictText2">댓글을 입력하면 실시간으로 분석합니다.</span>
+    </div>
+
+    <div class="score-gauge"><div class="marker" id="scoreMarker2" style="left:50%;"></div></div>
+    <div class="score-scale"><span>부정적</span><span>중립</span><span>긍정적</span></div>
+
+    <h4 style="margin:18px 0 4px;">🔍 판단 근거 (점선 테두리 + 🔄 = 부정어 때문에 반전된 단어)</h4>
+    <div class="preview-box" id="previewBox2">문장을 입력하면 여기에 표시됩니다.</div>
+
+    <div class="word-chips" id="posChips2"></div>
+    <div class="word-chips" id="negChips2"></div>
+
+    <div class="compare-note" id="compareNote" style="display:none;"></div>
   </div>
 
   <div class="panel">
-    <h3 style="margin-top:0;">이 방법의 한계 — 직접 확인해보세요</h3>
+    <h3 style="margin-top:0;">두 방식 모두의 한계</h3>
     <ul>
-      <li>이 방식은 문장 속에 사전에 있는 단어가 있는지만 확인하는 <strong>단어 사전 기반 감성 분석</strong>입니다. 뜻을 이해하는 것이 아니라 <strong>글자를 보고 짝을 맞추는 것</strong>에 가깝습니다.</li>
-      <li>그래서 "하나도 안 좋아"처럼 <strong>부정어와 함께 쓰이면 반대 의미</strong>가 되는 문장도 '좋아'라는 글자 때문에 긍정으로 잘못 판단합니다. 위의 "헷갈리는 예시" 버튼으로 확인해보세요.</li>
-      <li>사전에 없는 단어나 신조어, 반어법(비꼬는 말)은 전혀 인식하지 못합니다.</li>
-      <li>실제 인공지능은 이런 한계를 극복하기 위해 문맥을 함께 학습하는 <strong>더 발전된 모델(신경망 기반 자연어 처리)</strong>을 사용합니다.</li>
+      <li>단어 사전 방식은 <strong>글자를 보고 짝을 맞추는 것</strong>에 가깝고, 문맥(부정어) 방식도 '안/못/~지 않다'라는 <strong>정해진 규칙만 확인</strong>할 뿐 문장을 진짜로 이해하는 것은 아닙니다.</li>
+      <li>사전에 없는 단어나 신조어, 반어법(비꼬는 말)은 두 방식 모두 전혀 인식하지 못합니다.</li>
+      <li>실제 인공지능은 이런 한계를 극복하기 위해 문장 전체의 흐름을 한 번에 학습하는 <strong>더 발전된 모델(신경망 기반 자연어 처리, 예: BERT·GPT)</strong>을 사용합니다.</li>
     </ul>
   </div>
 </div>
@@ -194,6 +254,110 @@ function analyze(text) {
   return { html, matchedPos, matchedNeg };
 }
 
+const NEG_BEFORE = /(안|못)\s?$/;
+const NEG_AFTER = /^\s?(지\s?않|지\s?못|지\s?마)/;
+
+function analyzeContext(text) {
+  let i = 0;
+  let html = "";
+  const matchedPos = [];
+  const matchedNeg = [];
+  while (i < text.length) {
+    let hit = null;
+    const candidates = WORD_INDEX.get(text[i]);
+    if (candidates) {
+      for (const entry of candidates) {
+        if (text.startsWith(entry.w, i)) { hit = entry; break; }
+      }
+    }
+    if (hit) {
+      const before = text.slice(Math.max(0, i - 6), i);
+      const after = text.slice(i + hit.w.length, i + hit.w.length + 8);
+      const negated = NEG_BEFORE.test(before) || NEG_AFTER.test(after);
+      const finalType = negated ? (hit.type === "pos" ? "neg" : "pos") : hit.type;
+      const cls = "hl-" + finalType + (negated ? " hl-flipped" : "");
+      const label = negated ? "부정어 때문에 반대로 해석됨" : "";
+      html += `<span class="${cls}" title="${label}">${negated ? "🔄" : ""}${escapeHtml(text.slice(i, i + hit.w.length))}</span>`;
+      (finalType === "pos" ? matchedPos : matchedNeg).push(hit.w);
+      i += hit.w.length;
+    } else {
+      html += escapeHtml(text[i]);
+      i += 1;
+    }
+  }
+  return { html, matchedPos, matchedNeg };
+}
+
+function verdictOf(matchedPos, matchedNeg) {
+  const score = matchedPos.length - matchedNeg.length;
+  if (matchedPos.length === 0 && matchedNeg.length === 0) return "neutral";
+  if (score > 0) return "pos";
+  if (score < 0) return "neg";
+  return "neutral";
+}
+
+function render2() {
+  const text = commentInput.value;
+  const previewBox = document.getElementById("previewBox2");
+  const verdictBanner = document.getElementById("verdictBanner2");
+  const verdictText = document.getElementById("verdictText2");
+  const posChips = document.getElementById("posChips2");
+  const negChips = document.getElementById("negChips2");
+  const compareNote = document.getElementById("compareNote");
+
+  if (!text.trim()) {
+    previewBox.innerHTML = "문장을 입력하면 여기에 표시됩니다.";
+    verdictBanner.className = "verdict-banner neutral";
+    verdictText.textContent = "댓글을 입력하면 실시간으로 분석합니다.";
+    verdictBanner.querySelector(".emoji").textContent = "🤔";
+    document.getElementById("scoreMarker2").style.left = "50%";
+    posChips.innerHTML = "";
+    negChips.innerHTML = "";
+    compareNote.style.display = "none";
+    return;
+  }
+
+  const { html, matchedPos, matchedNeg } = analyzeContext(text);
+  previewBox.innerHTML = html;
+
+  const score = matchedPos.length - matchedNeg.length;
+  const emojiEl = verdictBanner.querySelector(".emoji");
+
+  if (matchedPos.length === 0 && matchedNeg.length === 0) {
+    verdictBanner.className = "verdict-banner neutral";
+    emojiEl.textContent = "😐";
+    verdictText.textContent = "사전에 있는 긍정·부정 단어를 찾지 못했습니다 — 판단할 수 없습니다.";
+  } else if (score > 0) {
+    verdictBanner.className = "verdict-banner pos";
+    emojiEl.textContent = "😊";
+    verdictText.textContent = `긍정적인 댓글로 보입니다! (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  } else if (score < 0) {
+    verdictBanner.className = "verdict-banner neg";
+    emojiEl.textContent = "😠";
+    verdictText.textContent = `부정적인 댓글로 보입니다. (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  } else {
+    verdictBanner.className = "verdict-banner neutral";
+    emojiEl.textContent = "😐";
+    verdictText.textContent = `긍정과 부정이 비슷합니다. (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  }
+
+  const clampedScore = Math.max(-5, Math.min(5, score));
+  document.getElementById("scoreMarker2").style.left = ((clampedScore + 5) / 10 * 100) + "%";
+
+  posChips.innerHTML = matchedPos.map(w => `<span class="word-chip pos">+ ${w}</span>`).join("");
+  negChips.innerHTML = matchedNeg.map(w => `<span class="word-chip neg">− ${w}</span>`).join("");
+
+  const verdict1 = document.getElementById("verdictBanner").className.includes("pos") ? "pos"
+    : document.getElementById("verdictBanner").className.includes("neg") ? "neg" : "neutral";
+  const verdict2 = verdictOf(matchedPos, matchedNeg);
+  if (verdict1 !== verdict2) {
+    compareNote.style.display = "block";
+    compareNote.textContent = "⚡ 두 방식의 판단이 다릅니다! 1단계(단어 사전)는 특정 단어 하나만 보고 판단했지만, 2단계(문맥 고려)는 그 단어 주변의 부정어까지 확인해서 결과가 바뀌었습니다.";
+  } else {
+    compareNote.style.display = "none";
+  }
+}
+
 function render() {
   const text = commentInput.value;
   const previewBox = document.getElementById("previewBox");
@@ -244,13 +408,18 @@ function render() {
   negChips.innerHTML = matchedNeg.map(w => `<span class="word-chip neg">− ${w}</span>`).join("");
 }
 
-commentInput.addEventListener("input", render);
+function renderAll() {
+  render();
+  render2();
+}
+
+commentInput.addEventListener("input", renderAll);
 
 document.getElementById("presetBtns").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-preset]");
   if (!btn) return;
   commentInput.value = PRESETS[btn.dataset.preset];
-  render();
+  renderAll();
 });
 
 const PREVIEW_LIMIT = 200;
@@ -259,7 +428,7 @@ document.getElementById("allNegChips").innerHTML = NEG_WORDS.slice(0, PREVIEW_LI
 document.getElementById("posCount").textContent = POS_WORDS.length;
 document.getElementById("negCount").textContent = NEG_WORDS.length;
 
-render();
+renderAll();
 </script>
 </body>
 </html>

@@ -26,12 +26,13 @@ AI_math/
 
 ## 현재 제공 중인 도구
 
-- **댓글 감성 분석** (`unit2-data-representation/sentiment-analysis.html`):
-  [KNU 한국어 감성사전](https://github.com/park1200656/KnuSentiLex)(군산대학교,
+- **댓글 감성 분석(단어 사전 기반)** (`unit2-data-representation/sentiment-analysis.html`):
+  1단계는 [KNU 한국어 감성사전](https://github.com/park1200656/KnuSentiLex)(군산대학교,
   긍정 4,867개·부정 9,812개, `sentiment-dict.js`에 내장)과 실시간으로 대조해
-  댓글을 긍정/부정/중립으로 분류하고, 문장 속 단어를 색으로 하이라이트해
-  판단 근거를 보여줍니다. "안 좋아"처럼 부정어가 섞인 예시로 단어 사전 방식의
-  한계(문맥을 이해하지 못함)도 직접 체감하게 했습니다.
+  댓글을 긍정/부정/중립으로 분류하고 판단 근거 단어를 하이라이트합니다. 2단계는
+  같은 문장에 '안/못/~지 않다' 같은 부정어를 감지해 근처 단어의 감성을 뒤집는
+  아주 간단한 문맥 기반 분석을 나란히 보여주고, 두 결과가 다를 때 그 이유를
+  설명합니다.
 - **TF-IDF 계산기** (`unit2-data-representation/tfidf-calculator.html`): 문서별
   단어를 입력하면 TF → DF/상대도수 → IDF → TF·IDF를 4단계로 계산해 보여주고,
   각 문서의 최고 TF·IDF 단어를 핵심어로 짚어줍니다. 청바지 후기·날씨 기사
