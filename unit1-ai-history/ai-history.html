@@ -206,6 +206,108 @@
     gap: 6px;
     min-height: 30px;
   }
+
+  /* ---- 복습 모드: 확인 퀴즈 ---- */
+  .step-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    font-size: 1.1rem;
+  }
+  .step-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .quiz-progress {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    margin-bottom: 10px;
+  }
+  .quiz-question {
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .quiz-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .quiz-choice {
+    text-align: left;
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    cursor: pointer;
+    color: var(--color-text);
+  }
+  .quiz-choice:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
+  .quiz-choice.correct {
+    border-color: var(--color-accent);
+    background: #e9fbf7;
+    font-weight: 700;
+  }
+  .quiz-choice.wrong {
+    border-color: #ff5b77;
+    background: #ffecec;
+  }
+  .quiz-choice:disabled {
+    cursor: default;
+    opacity: 0.85;
+  }
+  .quiz-explain {
+    font-size: 0.86rem;
+    color: var(--color-text-muted);
+    background: var(--color-bg);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .quiz-final {
+    text-align: center;
+    padding: 20px 0 4px;
+  }
+  .quiz-final .big-score {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+  }
+
+  .summary-panel {
+    background: linear-gradient(135deg, #eef0ff, #e9fbf7);
+    border-radius: 14px;
+  }
+  .summary-panel .big-pct {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+  }
+  .summary-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+  }
+  .summary-row .item {
+    background: rgba(255,255,255,0.7);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
 </style>
 </head>
 <body>
@@ -219,7 +321,7 @@
 
   <div class="mode-switch">
     <button id="btnLearn" class="active">📖 학습 모드</button>
-    <button id="btnReview">🎮 복습 모드 (드래그 앤 드롭)</button>
+    <button id="btnReview">🎮 복습 모드 (형성평가)</button>
   </div>
 
   <!-- ===================== 학습 모드 ===================== -->
@@ -227,9 +329,10 @@
     <div class="timeline" id="timeline"></div>
   </div>
 
-  <!-- ===================== 복습 모드 ===================== -->
+  <!-- ===================== 복습 모드 (형성평가) ===================== -->
   <div id="reviewMode">
     <div class="panel">
+      <h2 class="step-title"><span class="num">1</span> 시대별로 분류하기</h2>
       <p style="margin-top:0;">카드를 알맞은 시대 칸으로 <strong>드래그</strong>하거나, 카드를 <strong>탭한 뒤 원하는 칸을 탭</strong>해서 놓아보세요. 다 놓았으면 채점해보세요.</p>
       <div class="review-toolbar">
         <div class="score-badge">정답 <span id="scoreVal">0</span> / <span id="scoreTotal">0</span></div>
@@ -240,6 +343,22 @@
       </div>
       <div id="cardPool"></div>
       <div class="buckets" id="buckets"></div>
+    </div>
+
+    <div class="panel" id="quizPanel">
+      <h2 class="step-title"><span class="num">2</span> 확인 퀴즈</h2>
+      <div id="quizArea"></div>
+    </div>
+
+    <div class="panel summary-panel" id="summaryPanel" style="display:none;">
+      <h2 style="margin-top:0;">📋 형성평가 결과</h2>
+      <div class="big-pct" id="summaryPct">-</div>
+      <div class="summary-row">
+        <div class="item">1단계 시대 분류: <strong id="summaryDrag">-</strong></div>
+        <div class="item">2단계 확인 퀴즈: <strong id="summaryQuiz">-</strong></div>
+      </div>
+      <p id="summaryMsg" style="font-weight:700;"></p>
+      <button id="retryAllBtn">전체 다시 풀기</button>
     </div>
   </div>
 </div>
@@ -270,7 +389,10 @@ const EVENTS = [
   {
     id: 2, era: "A", year: "1943", title: "매컬럭-피츠 뉴런",
     desc: "워런 매컬럭과 월터 피츠가 두뇌의 신경세포(뉴런)를 최초로 수학·논리 회로로 표현한 모델. 오늘날 인공신경망의 출발점입니다.",
-    imgs: [],
+    imgs: [
+      { src: "https://upload.wikimedia.org/wikipedia/commons/a/a0/1954_Walter_Pitts_and_a_blackboard.jpg", alt: "칠판 앞의 월터 피츠" },
+      { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Artificial_neuron_structure.svg/960px-Artificial_neuron_structure.svg.png", alt: "인공 뉴런 구조도" },
+    ],
   },
   {
     id: 3, era: "B", year: "1950", title: "튜링 테스트",
@@ -280,7 +402,7 @@ const EVENTS = [
   {
     id: 4, era: "B", year: "1956", title: "다트머스 회의",
     desc: "존 매카시 등이 미국 다트머스 대학에 모여 '인공지능(Artificial Intelligence)'이라는 용어를 처음 사용한 워크숍. AI가 독립된 학문 분야로 출범한 순간입니다.",
-    imgs: [],
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/John_McCarthy_Stanford.jpg/960px-John_McCarthy_Stanford.jpg", alt: "다트머스 회의를 제안한 존 매카시" }],
   },
   {
     id: 5, era: "B", year: "1958", title: "퍼셉트론",
@@ -298,7 +420,10 @@ const EVENTS = [
   {
     id: 7, era: "C", year: "1970년대", title: "첫 번째 AI 겨울",
     desc: "민스키와 페퍼트가 퍼셉트론의 수학적 한계를 지적하고 기대만큼 성과가 나오지 않으면서, AI 연구에 대한 지원이 크게 줄어들었습니다.",
-    imgs: [],
+    imgs: [
+      { src: "https://upload.wikimedia.org/wikipedia/commons/f/f9/Marvin_Minsky_at_OLPCb_%283x4_cropped%29.jpg", alt: "마빈 민스키" },
+      { src: "https://upload.wikimedia.org/wikipedia/commons/7/74/Seymour_Papert.jpg", alt: "시모어 페퍼트" },
+    ],
   },
   {
     id: 8, era: "D", year: "1980년대", title: "전문가 시스템의 시대",
@@ -308,7 +433,7 @@ const EVENTS = [
   {
     id: 9, era: "D", year: "1987~1993", title: "두 번째 AI 겨울",
     desc: "전문가 시스템은 규칙을 일일이 새로 넣어야 해 유지보수가 어려웠고, 전용 하드웨어 시장까지 붕괴하면서 AI는 다시 침체기를 맞습니다.",
-    imgs: [],
+    imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/LISP_machine.jpg/960px-LISP_machine.jpg", alt: "붕괴한 리스프 머신 시장의 전용 AI 하드웨어" }],
   },
   {
     id: 10, era: "E", year: "1997", title: "딥블루 vs 카스파로프",
@@ -345,6 +470,75 @@ const EVENTS = [
     id: 15, era: "G", year: "2024", title: "힌턴, 노벨물리학상 수상",
     desc: "'딥러닝의 대부'로 불리는 제프리 힌턴이 인공신경망 연구 공로로 노벨물리학상을 수상하며, AI 발전과 그 위험성에 대한 사회적 논의가 더욱 커졌습니다.",
     imgs: [{ src: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Geoffrey_Hinton_in_2026.jpg/960px-Geoffrey_Hinton_in_2026.jpg", alt: "제프리 힌턴" }],
+  },
+];
+
+const QUIZ = [
+  {
+    q: "'인공지능(Artificial Intelligence)'이라는 용어가 처음 사용된 회의는 어느 대학에서 열렸나요?",
+    choices: ["MIT", "다트머스 대학", "스탠퍼드 대학", "옥스퍼드 대학"],
+    answer: 1,
+    explain: "1956년 다트머스 대학에서 열린 워크숍에서 존 매카시 등이 '인공지능'이라는 용어를 처음 사용했습니다.",
+  },
+  {
+    q: "앨런 튜링이 1936년에 고안하여 오늘날 컴퓨터 이론의 뿌리가 된 개념은?",
+    choices: ["퍼셉트론", "인공신경망", "튜링 기계", "전문가 시스템"],
+    answer: 2,
+    explain: "튜링 기계는 '계산 가능하다'는 것을 수학적으로 정의하기 위한 가상의 기계입니다.",
+  },
+  {
+    q: "매컬럭과 피츠는 뇌의 신경세포(뉴런)를 수학·논리 회로로 표현한 최초의 모델을 제안했다.",
+    choices: ["O", "X"],
+    answer: 0,
+    explain: "1943년 매컬럭-피츠 뉴런은 오늘날 인공신경망의 출발점으로 꼽힙니다.",
+  },
+  {
+    q: "최초의 챗봇으로 불리며 심리상담사처럼 대화했던 프로그램의 이름은?",
+    choices: ["ChatGPT", "ELIZA", "Watson", "Siri"],
+    answer: 1,
+    explain: "1966년 조지프 와이젠바움이 만든 ELIZA는 정해진 규칙만으로 대화하며 많은 사람을 놀라게 했습니다.",
+  },
+  {
+    q: "첫 번째 AI 겨울이 찾아온 주된 이유는 무엇인가요?",
+    choices: ["전문가 시스템의 유지보수 어려움", "퍼셉트론의 수학적 한계가 드러나서", "전용 하드웨어 시장의 붕괴", "GPU 부족"],
+    answer: 1,
+    explain: "민스키와 페퍼트가 퍼셉트론의 한계를 수학적으로 지적하면서 첫 번째 AI 겨울이 찾아왔습니다.",
+  },
+  {
+    q: "두 번째 AI 겨울과 가장 관련 깊은 사건은?",
+    choices: ["퍼셉트론의 한계 지적", "리스프 머신(전용 AI 하드웨어) 시장의 붕괴", "알파고의 등장", "트랜스포머 구조의 발표"],
+    answer: 1,
+    explain: "전문가 시스템을 위해 만들어진 전용 하드웨어(리스프 머신) 시장이 무너지며 두 번째 AI 겨울이 찾아왔습니다.",
+  },
+  {
+    q: "1997년 세계 체스 챔피언 가리 카스파로프를 이긴 컴퓨터는?",
+    choices: ["왓슨", "딥블루", "알파고", "텐서플로"],
+    answer: 1,
+    explain: "IBM의 체스 컴퓨터 딥블루가 정식 경기에서 카스파로프를 꺾었습니다.",
+  },
+  {
+    q: "2016년 바둑으로 이세돌 9단을 이긴 인공지능은?",
+    choices: ["왓슨", "딥블루", "알파고", "GPT-3"],
+    answer: 2,
+    explain: "구글 딥마인드의 알파고가 이세돌 9단을 4대 1로 이겼습니다.",
+  },
+  {
+    q: "2012년 이미지 인식 대회에서 딥러닝 기반으로 압도적 성능을 보이며 딥러닝 붐을 일으킨 신경망은?",
+    choices: ["AlexNet", "ResNet", "LSTM", "BERT"],
+    answer: 0,
+    explain: "AlexNet의 우승을 계기로 딥러닝이 본격적으로 주목받기 시작했습니다.",
+  },
+  {
+    q: "ChatGPT는 출시 두 달 만에 사용자 1억 명을 돌파했다.",
+    choices: ["O", "X"],
+    answer: 0,
+    explain: "ChatGPT는 빠른 대중화 속도로 AI를 실생활 도구로 널리 알린 분기점이 되었습니다.",
+  },
+  {
+    q: "2024년 인공신경망 연구 공로로 노벨물리학상을 수상한 사람은?",
+    choices: ["얀 르쿤", "제프리 힌턴", "앤드류 응", "요슈아 벤지오"],
+    answer: 1,
+    explain: "'딥러닝의 대부'로 불리는 제프리 힌턴이 노벨물리학상을 수상했습니다.",
   },
 ];
 
@@ -475,6 +669,9 @@ function setupReview() {
 
 document.getElementById("shuffleBtn").addEventListener("click", setupReview);
 
+let dragDropScore = 0;
+let dragDropAttempted = false;
+
 document.getElementById("gradeBtn").addEventListener("click", () => {
   let correct = 0;
   document.querySelectorAll(".bucket").forEach(bucket => {
@@ -494,9 +691,108 @@ document.getElementById("gradeBtn").addEventListener("click", () => {
     });
   });
   scoreVal.textContent = correct;
+  dragDropScore = correct;
+  dragDropAttempted = true;
+  updateSummary();
+});
+
+// ---------------- 복습 모드: 확인 퀴즈 ----------------
+const quizArea = document.getElementById("quizArea");
+let quizOrder = [];
+let quizIndex = 0;
+let quizScore = 0;
+let quizAttempted = false;
+
+function setupQuiz() {
+  quizOrder = shuffle(QUIZ.map((q, i) => i));
+  quizIndex = 0;
+  quizScore = 0;
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const q = QUIZ[quizOrder[quizIndex]];
+  quizArea.innerHTML = `
+    <div class="quiz-progress">문제 ${quizIndex + 1} / ${QUIZ.length} · 맞은 개수 ${quizScore}</div>
+    <div class="quiz-question">${q.q}</div>
+    <div class="quiz-choices" id="quizChoices"></div>
+    <div class="quiz-explain" id="quizExplain"></div>
+    <button id="quizNextBtn" style="display:none;">${quizIndex === QUIZ.length - 1 ? "결과 보기" : "다음 문제"}</button>
+  `;
+  const choicesEl = document.getElementById("quizChoices");
+  q.choices.forEach((choiceText, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "quiz-choice";
+    btn.textContent = choiceText;
+    btn.addEventListener("click", () => answerQuiz(idx));
+    choicesEl.appendChild(btn);
+  });
+}
+
+function answerQuiz(chosenIdx) {
+  const q = QUIZ[quizOrder[quizIndex]];
+  const buttons = document.querySelectorAll("#quizChoices .quiz-choice");
+  buttons.forEach((b, idx) => {
+    b.disabled = true;
+    if (idx === q.answer) b.classList.add("correct");
+    else if (idx === chosenIdx) b.classList.add("wrong");
+  });
+  if (chosenIdx === q.answer) quizScore++;
+  const explainEl = document.getElementById("quizExplain");
+  explainEl.textContent = "💡 " + q.explain;
+  explainEl.style.display = "";
+  document.querySelector(".quiz-progress").textContent = `문제 ${quizIndex + 1} / ${QUIZ.length} · 맞은 개수 ${quizScore}`;
+  const nextBtn = document.getElementById("quizNextBtn");
+  nextBtn.style.display = "";
+  nextBtn.addEventListener("click", () => {
+    if (quizIndex < QUIZ.length - 1) {
+      quizIndex++;
+      renderQuizQuestion();
+    } else {
+      finishQuiz();
+    }
+  }, { once: true });
+}
+
+function finishQuiz() {
+  quizAttempted = true;
+  quizArea.innerHTML = `
+    <div class="quiz-final">
+      <div class="big-score">${quizScore} / ${QUIZ.length}</div>
+      <p>퀴즈를 완료했습니다.</p>
+      <button id="quizRetryBtn" class="secondary">퀴즈 다시 풀기</button>
+    </div>
+  `;
+  document.getElementById("quizRetryBtn").addEventListener("click", setupQuiz);
+  updateSummary();
+}
+
+function updateSummary() {
+  const summaryPanel = document.getElementById("summaryPanel");
+  if (!dragDropAttempted || !quizAttempted) { summaryPanel.style.display = "none"; return; }
+  const totalCorrect = dragDropScore + quizScore;
+  const totalCount = EVENTS.length + QUIZ.length;
+  const pct = Math.round((totalCorrect / totalCount) * 100);
+  document.getElementById("summaryPct").textContent = pct + "%";
+  document.getElementById("summaryDrag").textContent = `${dragDropScore} / ${EVENTS.length}`;
+  document.getElementById("summaryQuiz").textContent = `${quizScore} / ${QUIZ.length}`;
+  const msgEl = document.getElementById("summaryMsg");
+  if (pct >= 90) msgEl.textContent = "🌟 훌륭해요! 인공지능의 역사를 아주 잘 이해하고 있습니다.";
+  else if (pct >= 70) msgEl.textContent = "👍 잘했어요! 조금만 더 복습하면 완벽해질 거예요.";
+  else msgEl.textContent = "📖 학습 모드로 돌아가 타임라인을 한 번 더 살펴보는 걸 추천해요.";
+  summaryPanel.style.display = "";
+}
+
+document.getElementById("retryAllBtn").addEventListener("click", () => {
+  dragDropAttempted = false;
+  quizAttempted = false;
+  document.getElementById("summaryPanel").style.display = "none";
+  setupReview();
+  setupQuiz();
 });
 
 setupReview();
+setupQuiz();
 </script>
 </body>
 </html>
