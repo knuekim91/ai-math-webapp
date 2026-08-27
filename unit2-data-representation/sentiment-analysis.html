@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>댓글 감성 분석 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  textarea#commentInput {
+    width: 100%;
+    min-height: 110px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+  }
+  .preview-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--color-bg);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    line-height: 1.9;
+    min-height: 48px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .hl-pos { background: #c8f3dd; border-radius: 4px; padding: 1px 3px; font-weight: 700; }
+  .hl-neg { background: #ffd3d3; border-radius: 4px; padding: 1px 3px; font-weight: 700; }
+
+  .verdict-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin: 16px 0;
+  }
+  .verdict-banner.pos { background: #e3faf3; color: #05875a; }
+  .verdict-banner.neg { background: #ffecec; color: #c9302c; }
+  .verdict-banner.neutral { background: var(--color-bg); color: var(--color-text-muted); }
+  .verdict-banner .emoji { font-size: 2rem; }
+
+  .score-gauge {
+    position: relative;
+    height: 16px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #c9302c, #e9e9ee 50%, #05875a);
+    margin: 6px 0 4px;
+  }
+  .score-gauge .marker {
+    position: absolute; top: -4px; width: 4px; height: 24px;
+    background: #1c1f2b; border-radius: 2px; transform: translateX(-50%);
+  }
+  .score-scale { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-text-muted); }
+
+  .word-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .word-chip { padding: 4px 11px; border-radius: 999px; font-size: 0.82rem; font-weight: 600; }
+  .word-chip.pos { background: #c8f3dd; color: #05875a; }
+  .word-chip.neg { background: #ffd3d3; color: #c9302c; }
+
+  details.dict-toggle { margin-top: 16px; }
+  details.dict-toggle summary { cursor: pointer; font-weight: 700; color: var(--color-primary-dark); }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-group button {
+    background: var(--color-surface); color: var(--color-text);
+    border: 1px solid var(--color-border); font-size: 0.82rem; padding: 7px 13px;
+  }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>💬 댓글 감성 분석</h1>
+    <p>댓글을 입력하면 미리 준비된 긍정·부정 단어 사전과 비교해서, 실시간으로 좋은 댓글인지 나쁜 댓글인지 판단하고 그 이유를 보여줍니다.</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label>예시 불러오기</label>
+        <div class="btn-group" id="presetBtns">
+          <button data-preset="good">좋은 댓글 예시</button>
+          <button data-preset="bad">나쁜 댓글 예시</button>
+          <button data-preset="tricky">헷갈리는 예시 (부정어)</button>
+        </div>
+      </div>
+    </div>
+    <textarea id="commentInput" placeholder="여기에 댓글을 입력해보세요... (예: 오늘 너무 행복하고 즐거운 하루였어!)"></textarea>
+
+    <div class="verdict-banner neutral" id="verdictBanner">
+      <span class="emoji">🤔</span>
+      <span id="verdictText">댓글을 입력하면 실시간으로 분석합니다.</span>
+    </div>
+
+    <div class="score-gauge"><div class="marker" id="scoreMarker" style="left:50%;"></div></div>
+    <div class="score-scale"><span>부정적</span><span>중립</span><span>긍정적</span></div>
+
+    <h4 style="margin:18px 0 4px;">🔍 판단 근거 — 문장 속에서 찾은 단어</h4>
+    <div class="preview-box" id="previewBox">문장을 입력하면 여기에 긍정 단어는 초록색, 부정 단어는 빨간색으로 표시됩니다.</div>
+
+    <div class="word-chips" id="posChips"></div>
+    <div class="word-chips" id="negChips"></div>
+
+    <details class="dict-toggle">
+      <summary>미리 준비된 감성 단어 사전 전체 보기</summary>
+      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:10px 0 4px;">긍정 단어 (<span id="posCount"></span>개)</p>
+      <div class="word-chips" id="allPosChips"></div>
+      <p style="font-size:0.85rem; color:var(--color-text-muted); margin:14px 0 4px;">부정 단어 (<span id="negCount"></span>개)</p>
+      <div class="word-chips" id="allNegChips"></div>
+    </details>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">이 방법의 한계 — 직접 확인해보세요</h3>
+    <ul>
+      <li>이 방식은 문장 속에 사전에 있는 단어가 있는지만 확인하는 <strong>단어 사전 기반 감성 분석</strong>입니다. 뜻을 이해하는 것이 아니라 <strong>글자를 보고 짝을 맞추는 것</strong>에 가깝습니다.</li>
+      <li>그래서 "하나도 안 좋아"처럼 <strong>부정어와 함께 쓰이면 반대 의미</strong>가 되는 문장도 '좋아'라는 글자 때문에 긍정으로 잘못 판단합니다. 위의 "헷갈리는 예시" 버튼으로 확인해보세요.</li>
+      <li>사전에 없는 단어나 신조어, 반어법(비꼬는 말)은 전혀 인식하지 못합니다.</li>
+      <li>실제 인공지능은 이런 한계를 극복하기 위해 문맥을 함께 학습하는 <strong>더 발전된 모델(신경망 기반 자연어 처리)</strong>을 사용합니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+const POS_WORDS = [
+  "행복", "응원", "소중", "최고", "좋아", "좋다", "좋은", "웃음", "웃다", "사랑",
+  "아름답다", "예쁘다", "멋지다", "훌륭하다", "완벽하다", "감사", "고맙다", "기쁘다", "즐겁다", "다행",
+  "대단하다", "착하다", "친절하다", "편안하다", "신난다", "설레다", "뿌듯하다", "만족스럽다", "반갑다", "축하",
+  "힘내", "든든하다", "귀엽다", "재미있다", "놀랍다", "자랑스럽다", "감동", "활기차다", "상쾌하다", "유쾌하다",
+  "화이팅", "잘하다", "최선", "응원하다", "다정하다",
+];
+
+const NEG_WORDS = [
+  "싫다", "싫어", "짜증", "화나다", "최악", "별로", "실망", "안좋다", "밉다", "지겹다",
+  "지루하다", "역겹다", "끔찍하다", "혐오", "저주", "죄인", "울다", "슬프다", "우울하다", "힘들다",
+  "괴롭다", "불쾌하다", "답답하다", "서운하다", "불안하다", "초조하다", "무섭다", "두렵다", "창피하다", "형편없다",
+  "못생기다", "어리석다", "멍청하다", "바보", "한심하다", "극악무도", "꺼지다", "나쁘다", "실패", "후회",
+  "미워하다", "원망하다", "비참하다", "화나", "짜증나",
+];
+
+const PRESETS = {
+  good: "네가 어떤 삶을 살든 나는 너를 응원할 것이다. 우리 모두는 소중한 존재예요. 너를 만난 순간부터 하루하루가 행복이야. 알아요 알아, 내가 최고라는거. 나는 네가 너라서 좋아. 마음에 꽂히는 좋은 글귀가 있으면 함께 나누면 좋겠어요.",
+  bad: "너무 싫어요 다시는 보기 싫습니다. 널 울게 만들꺼야 제발 꺼져 주세요. 항상 저주해 줄테다. 혐오스럽고 극악무도한 놈이군. 죄인은 죄를 받아야지.",
+  tricky: "오늘 하루 하나도 안 좋아. 사실 별로 안 행복해. 전혀 안 최고야.",
+};
+
+const commentInput = document.getElementById("commentInput");
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function analyze(text) {
+  const dict = [
+    ...POS_WORDS.map(w => ({ w, type: "pos" })),
+    ...NEG_WORDS.map(w => ({ w, type: "neg" })),
+  ].sort((a, b) => b.w.length - a.w.length);
+
+  let i = 0;
+  let html = "";
+  const matchedPos = [];
+  const matchedNeg = [];
+  while (i < text.length) {
+    let hit = null;
+    for (const entry of dict) {
+      if (text.startsWith(entry.w, i)) { hit = entry; break; }
+    }
+    if (hit) {
+      html += `<span class="hl-${hit.type}">${escapeHtml(text.slice(i, i + hit.w.length))}</span>`;
+      (hit.type === "pos" ? matchedPos : matchedNeg).push(hit.w);
+      i += hit.w.length;
+    } else {
+      html += escapeHtml(text[i]);
+      i += 1;
+    }
+  }
+  return { html, matchedPos, matchedNeg };
+}
+
+function render() {
+  const text = commentInput.value;
+  const previewBox = document.getElementById("previewBox");
+  const verdictBanner = document.getElementById("verdictBanner");
+  const verdictText = document.getElementById("verdictText");
+  const posChips = document.getElementById("posChips");
+  const negChips = document.getElementById("negChips");
+
+  if (!text.trim()) {
+    previewBox.innerHTML = "문장을 입력하면 여기에 긍정 단어는 초록색, 부정 단어는 빨간색으로 표시됩니다.";
+    verdictBanner.className = "verdict-banner neutral";
+    verdictText.textContent = "댓글을 입력하면 실시간으로 분석합니다.";
+    document.getElementById("verdictBanner").querySelector(".emoji").textContent = "🤔";
+    document.getElementById("scoreMarker").style.left = "50%";
+    posChips.innerHTML = "";
+    negChips.innerHTML = "";
+    return;
+  }
+
+  const { html, matchedPos, matchedNeg } = analyze(text);
+  previewBox.innerHTML = html;
+
+  const score = matchedPos.length - matchedNeg.length;
+  const emojiEl = verdictBanner.querySelector(".emoji");
+
+  if (matchedPos.length === 0 && matchedNeg.length === 0) {
+    verdictBanner.className = "verdict-banner neutral";
+    emojiEl.textContent = "😐";
+    verdictText.textContent = "사전에 있는 긍정·부정 단어를 찾지 못했습니다 — 판단할 수 없습니다.";
+  } else if (score > 0) {
+    verdictBanner.className = "verdict-banner pos";
+    emojiEl.textContent = "😊";
+    verdictText.textContent = `긍정적인 댓글로 보입니다! (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  } else if (score < 0) {
+    verdictBanner.className = "verdict-banner neg";
+    emojiEl.textContent = "😠";
+    verdictText.textContent = `부정적인 댓글로 보입니다. (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  } else {
+    verdictBanner.className = "verdict-banner neutral";
+    emojiEl.textContent = "😐";
+    verdictText.textContent = `긍정과 부정이 비슷합니다. (긍정 ${matchedPos.length} vs 부정 ${matchedNeg.length})`;
+  }
+
+  const clampedScore = Math.max(-5, Math.min(5, score));
+  document.getElementById("scoreMarker").style.left = ((clampedScore + 5) / 10 * 100) + "%";
+
+  posChips.innerHTML = matchedPos.map(w => `<span class="word-chip pos">+ ${w}</span>`).join("");
+  negChips.innerHTML = matchedNeg.map(w => `<span class="word-chip neg">− ${w}</span>`).join("");
+}
+
+commentInput.addEventListener("input", render);
+
+document.getElementById("presetBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-preset]");
+  if (!btn) return;
+  commentInput.value = PRESETS[btn.dataset.preset];
+  render();
+});
+
+document.getElementById("allPosChips").innerHTML = POS_WORDS.map(w => `<span class="word-chip pos">${w}</span>`).join("");
+document.getElementById("allNegChips").innerHTML = NEG_WORDS.map(w => `<span class="word-chip neg">${w}</span>`).join("");
+document.getElementById("posCount").textContent = POS_WORDS.length;
+document.getElementById("negCount").textContent = NEG_WORDS.length;
+
+render();
+</script>
+</body>
+</html>
