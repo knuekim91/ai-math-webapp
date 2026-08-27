@@ -26,6 +26,11 @@ AI_math/
 
 ## 현재 제공 중인 도구
 
+- **손글씨 숫자 인식** (`unit2-data-representation/handwriting-recognition.html`):
+  학생이 캔버스에 숫자를 그리면, 실제 MNIST 데이터셋에서 뽑아 20×20으로 정규화한
+  예시 800장(숫자당 80장)과 유클리드 거리를 계산해 k-최근접 이웃(k=5)으로
+  분류합니다. 가장 가까운 이웃 5장을 썸네일로 보여줘 판단 근거까지 투명하게
+  드러냅니다. 데이터는 `mnist-knn-data.js`에 base64로 내장.
 - **신경망 플레이그라운드** (`unit4-prediction/neural-network-playground.html`):
   단층 퍼셉트론의 가중치(w1, w2, b)를 슬라이더로 조절하거나 경사하강법으로
   학습시키며 분류 경계선의 변화를 봅니다. XOR·원형 패턴에서는 정확도가 낮은

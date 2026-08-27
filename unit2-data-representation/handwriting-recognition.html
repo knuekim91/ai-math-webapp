@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>손글씨 숫자 인식 | 인공지능 수학 학습 도구</title>
+<link rel="stylesheet" href="../assets/common.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+  #drawCanvas {
+    width: 100%;
+    aspect-ratio: 1/1;
+    background: #000;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .draw-actions { display: flex; gap: 10px; margin-top: 14px; }
+
+  .predict-hero {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 20px;
+  }
+  .predict-digit {
+    font-size: 5rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+    width: 110px;
+    text-align: center;
+  }
+  .predict-digit.empty { color: var(--color-border); font-size: 3rem; }
+
+  .bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .bar-row { display: grid; grid-template-columns: 16px 1fr 34px; align-items: center; gap: 8px; font-size: 0.78rem; font-family: monospace; }
+  .bar-track { height: 12px; background: var(--color-bg); border-radius: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--color-primary); border-radius: 6px; transition: width 0.2s ease; }
+  .bar-fill.top { background: var(--color-accent); }
+
+  .neighbors { display: flex; gap: 8px; flex-wrap: wrap; }
+  .neighbor-card { text-align: center; }
+  .neighbor-card canvas {
+    width: 56px; height: 56px;
+    image-rendering: pixelated;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: #000;
+  }
+  .neighbor-card span { display: block; font-size: 0.75rem; color: var(--color-text-muted); margin-top: 3px; }
+
+  .loading-msg { color: var(--color-text-muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+
+<div class="page-wrap">
+  <div class="tool-header">
+    <h1>✍️ 손글씨 숫자 인식</h1>
+    <p>0~9 중 숫자 하나를 그려보세요. 실제 MNIST 손글씨 데이터셋에서 뽑은 예시들과 비교해서 어떤 숫자인지 맞혀봅니다.</p>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h3 style="margin-top:0;">여기에 그려보세요</h3>
+      <canvas id="drawCanvas"></canvas>
+      <div class="draw-actions">
+        <button id="recognizeBtn">🔍 인식하기</button>
+        <button class="secondary" id="clearBtn">지우기</button>
+      </div>
+      <p class="loading-msg" id="loadingMsg">예시 데이터를 불러오는 중...</p>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">인식 결과</h3>
+      <div class="predict-hero">
+        <div class="predict-digit empty" id="predictDigit">?</div>
+        <div class="bars" id="bars"></div>
+      </div>
+      <h4 style="margin-bottom:8px;">가장 비슷했던 예시 5장</h4>
+      <div class="neighbors" id="neighbors"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">이 프로그램은 어떻게 숫자를 맞힐까요?</h3>
+    <ul>
+      <li>딥러닝 신경망이 아니라, <strong>실제 MNIST 손글씨 데이터셋에서 뽑은 800장</strong>(숫자마다 80장)의 예시 그림을 미리 준비해두었습니다.</li>
+      <li>그린 그림을 20×20 크기로 맞춘 뒤, 800장의 예시와 <strong>픽셀 값의 유클리드 거리</strong>를 하나씩 계산합니다 — 벡터와 행렬 연산에서 배운 거리 개념과 같습니다.</li>
+      <li>거리가 가장 가까운 <strong>5개의 이웃(k-최근접 이웃, k-NN)</strong>이 어떤 숫자인지 투표해서, 가장 많이 나온 숫자를 정답으로 예측합니다.</li>
+      <li>글씨체가 데이터셋과 많이 다르면 틀릴 수도 있습니다 — 그것이 바로 <strong>인공지능 학습 데이터의 다양성이 중요한 이유</strong>입니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="site-footer"></div>
+<script src="../assets/common.js"></script>
+<script src="mnist-knn-data.js"></script>
+<script>
+AIMath.header({ home: "../index.html" });
+AIMath.footer();
+
+// ---- 예시 데이터 디코딩 ----
+let PROTO_DATA = null; // Float32Array[N * SIZE*SIZE]
+let PROTO_LABELS = MNIST_KNN_LABELS;
+const SIZE = MNIST_KNN_SIZE;
+
+function decodeBase64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+const protoBytes = decodeBase64ToBytes(MNIST_KNN_DATA_B64);
+PROTO_DATA = new Float32Array(protoBytes.length);
+for (let i = 0; i < protoBytes.length; i++) PROTO_DATA[i] = protoBytes[i];
+document.getElementById("loadingMsg").textContent = `예시 ${PROTO_LABELS.length}장 준비 완료 — 숫자를 그려보세요!`;
+
+// ---- 그리기 캔버스 ----
+const drawCanvas = document.getElementById("drawCanvas");
+const dctx = drawCanvas.getContext("2d");
+let drawing = false;
+let hasInk = false;
+
+function resizeDrawCanvas() {
+  const rect = drawCanvas.getBoundingClientRect();
+  const s = Math.max(rect.width, 260);
+  drawCanvas.width = s;
+  drawCanvas.height = s;
+  dctx.fillStyle = "#000";
+  dctx.fillRect(0, 0, s, s);
+}
+resizeDrawCanvas();
+window.addEventListener("resize", () => {
+  const prev = document.createElement("canvas");
+  prev.width = drawCanvas.width; prev.height = drawCanvas.height;
+  prev.getContext("2d").drawImage(drawCanvas, 0, 0);
+  resizeDrawCanvas();
+  dctx.drawImage(prev, 0, 0, drawCanvas.width, drawCanvas.height);
+});
+
+function getPos(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return [
+    (t.clientX - rect.left) / rect.width * drawCanvas.width,
+    (t.clientY - rect.top) / rect.height * drawCanvas.height,
+  ];
+}
+
+function startDraw(e) {
+  drawing = true;
+  hasInk = true;
+  const [x, y] = getPos(e);
+  dctx.beginPath();
+  dctx.moveTo(x, y);
+  e.preventDefault();
+}
+function moveDraw(e) {
+  if (!drawing) return;
+  const [x, y] = getPos(e);
+  dctx.strokeStyle = "#fff";
+  dctx.lineWidth = drawCanvas.width * 0.09;
+  dctx.lineCap = "round";
+  dctx.lineJoin = "round";
+  dctx.lineTo(x, y);
+  dctx.stroke();
+  e.preventDefault();
+}
+function endDraw(e) { drawing = false; }
+
+drawCanvas.addEventListener("mousedown", startDraw);
+drawCanvas.addEventListener("mousemove", moveDraw);
+window.addEventListener("mouseup", endDraw);
+drawCanvas.addEventListener("touchstart", startDraw, { passive: false });
+drawCanvas.addEventListener("touchmove", moveDraw, { passive: false });
+drawCanvas.addEventListener("touchend", endDraw);
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  resizeDrawCanvas();
+  hasInk = false;
+  resetResult();
+});
+
+// ---- 전처리: 그림 -> 20x20 정규화 벡터 ----
+function normalizeDrawing() {
+  const w = drawCanvas.width, h = drawCanvas.height;
+  const data = dctx.getImageData(0, 0, w, h).data;
+  let minX = w, maxX = -1, minY = h, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = data[(y * w + x) * 4]; // R채널 (흑백이므로 R=G=B)
+      if (v > 40) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null; // 그림 없음
+
+  const cropW = maxX - minX + 1, cropH = maxY - minY + 1;
+  const cropCanvas = document.createElement("canvas");
+  cropCanvas.width = cropW; cropCanvas.height = cropH;
+  cropCanvas.getContext("2d").drawImage(drawCanvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+
+  const target = SIZE - 2;
+  const scale = target / Math.max(cropW, cropH);
+  const newW = Math.max(1, Math.round(cropW * scale));
+  const newH = Math.max(1, Math.round(cropH * scale));
+
+  const resizedCanvas = document.createElement("canvas");
+  resizedCanvas.width = newW; resizedCanvas.height = newH;
+  const rctx = resizedCanvas.getContext("2d");
+  rctx.imageSmoothingEnabled = true;
+  rctx.drawImage(cropCanvas, 0, 0, newW, newH);
+
+  const finalCanvas = document.createElement("canvas");
+  finalCanvas.width = SIZE; finalCanvas.height = SIZE;
+  const fctx = finalCanvas.getContext("2d");
+  fctx.fillStyle = "#000"; fctx.fillRect(0, 0, SIZE, SIZE);
+  const offX = Math.floor((SIZE - newW) / 2), offY = Math.floor((SIZE - newH) / 2);
+  fctx.drawImage(resizedCanvas, offX, offY);
+
+  const finalData = fctx.getImageData(0, 0, SIZE, SIZE).data;
+  const vec = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < SIZE * SIZE; i++) vec[i] = finalData[i * 4];
+  return { vec, finalCanvas };
+}
+
+// ---- kNN 인식 ----
+function drawPrototypeThumbnail(canvas, protoIndex) {
+  canvas.width = SIZE; canvas.height = SIZE;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(SIZE, SIZE);
+  const base = protoIndex * SIZE * SIZE;
+  for (let i = 0; i < SIZE * SIZE; i++) {
+    const v = PROTO_DATA[base + i];
+    img.data[i*4] = v; img.data[i*4+1] = v; img.data[i*4+2] = v; img.data[i*4+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function resetResult() {
+  document.getElementById("predictDigit").textContent = "?";
+  document.getElementById("predictDigit").classList.add("empty");
+  document.getElementById("bars").innerHTML = "";
+  document.getElementById("neighbors").innerHTML = "";
+}
+
+document.getElementById("recognizeBtn").addEventListener("click", () => {
+  if (!hasInk) return;
+  const result = normalizeDrawing();
+  if (!result) return;
+  const { vec } = result;
+
+  const n = PROTO_LABELS.length;
+  const dists = new Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    const base = i * SIZE * SIZE;
+    for (let j = 0; j < SIZE * SIZE; j++) {
+      const diff = vec[j] - PROTO_DATA[base + j];
+      sum += diff * diff;
+    }
+    dists[i] = sum;
+  }
+
+  const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => dists[a] - dists[b]);
+  const K = 5;
+  const topK = order.slice(0, K);
+  const votes = new Array(10).fill(0);
+  topK.forEach(idx => votes[PROTO_LABELS[idx]]++);
+  const predicted = votes.indexOf(Math.max(...votes));
+
+  document.getElementById("predictDigit").textContent = predicted;
+  document.getElementById("predictDigit").classList.remove("empty");
+
+  const barsEl = document.getElementById("bars");
+  barsEl.innerHTML = "";
+  const maxVote = Math.max(...votes, 1);
+  for (let d = 0; d < 10; d++) {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `<span>${d}</span><div class="bar-track"><div class="bar-fill${d === predicted ? " top" : ""}" style="width:${(votes[d]/K*100)}%"></div></div><span>${votes[d]}/${K}</span>`;
+    barsEl.appendChild(row);
+  }
+
+  const neighborsEl = document.getElementById("neighbors");
+  neighborsEl.innerHTML = "";
+  topK.forEach(idx => {
+    const card = document.createElement("div");
+    card.className = "neighbor-card";
+    const c = document.createElement("canvas");
+    card.appendChild(c);
+    const label = document.createElement("span");
+    label.textContent = PROTO_LABELS[idx];
+    card.appendChild(label);
+    neighborsEl.appendChild(card);
+    drawPrototypeThumbnail(c, idx);
+  });
+});
+</script>
+</body>
+</html>
